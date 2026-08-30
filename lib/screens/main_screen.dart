@@ -48,6 +48,9 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   int _selectedIndex = 0;
+  final FocusNode _tvNavigationFocus = FocusNode(debugLabel: 'tv-navigation');
+  bool _isGoogleTv = false;
+  int _dashboardIndex = 0;
   Timer? _metricsDebounce;
   Timer? _metricsSafety;
 
@@ -114,6 +117,15 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
 
     _loadNavbarConfig();
     _checkForUpdates();
+    // The TV flavor sets this flag before Dart starts. The size fallback also
+    // supports Android TV devices that do not expose a TV-specific feature.
+    _isGoogleTv = const bool.fromEnvironment('PLAYTORRIO_GOOGLE_TV') ||
+        MediaQueryData.fromView(
+          WidgetsBinding.instance.platformDispatcher.views.first,
+        ).size.shortestSide >= 600;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _isGoogleTv) _tvNavigationFocus.requestFocus();
+    });
   }
 
   Future<void> _checkForUpdates() async {
@@ -229,6 +241,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     MainScreen.stremioSearchNotifier.removeListener(_onStremioSearch);
     MainScreen.requestTab.removeListener(_onRequestTab);
     SettingsService.navbarChangeNotifier.removeListener(_onNavbarConfigChanged);
+    _tvNavigationFocus.dispose();
     super.dispose();
   }
 
@@ -240,7 +253,12 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     
     final bool useNavRail = isDesktop || isLandscape;
 
-    return Scaffold(
+    if (_isGoogleTv) return _buildTvDashboard();
+
+    return Focus(
+      focusNode: _tvNavigationFocus,
+      autofocus: false,
+      child: Scaffold(
       body: Stack(
         children: [
           // Base gradient
@@ -357,6 +375,92 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
       bottomNavigationBar: useNavRail
           ? null
           : _buildScrollableBottomNav(),
+      ),
+    );
+  }
+
+  void _moveDashboard(int dx, int dy) {
+    const columns = 4;
+    final row = _dashboardIndex ~/ columns;
+    final column = _dashboardIndex % columns;
+    final nextRow = (row + dy).clamp(0, (_visibleIds.length - 1) ~/ columns);
+    final nextColumn = (column + dx).clamp(0, columns - 1);
+    final next = nextRow * columns + nextColumn;
+    if (next < _visibleIds.length) setState(() => _dashboardIndex = next);
+  }
+
+  Widget _buildTvDashboard() {
+    return Focus(
+      focusNode: _tvNavigationFocus,
+      autofocus: true,
+      child: Scaffold(
+        body: Container(
+          decoration: AppTheme.effectiveBackground,
+          child: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(48, 28, 48, 32),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.play_circle_fill, color: AppTheme.current.primaryColor, size: 42),
+                      const SizedBox(width: 14),
+                      const Text('PLAYTORRIO', style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w800, letterSpacing: 1.5)),
+                      const Spacer(),
+                      Text('Choose a section', style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 16)),
+                    ],
+                  ),
+                  const SizedBox(height: 34),
+                  const Text('What do you want to watch?', style: TextStyle(color: Colors.white, fontSize: 30, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 24),
+                  Expanded(
+                    child: GridView.builder(
+                      itemCount: _visibleIds.length,
+                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 4,
+                        crossAxisSpacing: 18,
+                        mainAxisSpacing: 18,
+                        childAspectRatio: 1.75,
+                      ),
+                      itemBuilder: (context, index) {
+                        final id = _visibleIds[index];
+                        final meta = _navMeta[id]!;
+                        final selected = index == _dashboardIndex;
+                        return AnimatedContainer(
+                          duration: const Duration(milliseconds: 140),
+                          decoration: BoxDecoration(
+                            color: selected ? AppTheme.current.primaryColor.withValues(alpha: 0.28) : AppTheme.current.bgCard.withValues(alpha: 0.9),
+                            borderRadius: BorderRadius.circular(18),
+                            border: Border.all(
+                              color: selected ? AppTheme.current.primaryColor : Colors.white.withValues(alpha: 0.08),
+                              width: selected ? 3 : 1,
+                            ),
+                            boxShadow: selected ? [BoxShadow(color: AppTheme.current.primaryColor.withValues(alpha: 0.35), blurRadius: 22)] : null,
+                          ),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(18),
+                            onTap: () => _onItemTapped(index),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(selected ? meta['active'] as IconData : meta['icon'] as IconData, color: selected ? Colors.white : Colors.white70, size: 34),
+                                const SizedBox(width: 14),
+                                Flexible(child: Text(meta['label'] as String, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(color: selected ? Colors.white : Colors.white70, fontSize: 17, fontWeight: selected ? FontWeight.bold : FontWeight.w500))),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  Text('Use the directional pad to move • Press OK to open', style: TextStyle(color: Colors.white.withValues(alpha: 0.45), fontSize: 14)),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 

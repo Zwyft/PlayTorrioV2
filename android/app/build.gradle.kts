@@ -32,6 +32,25 @@ android {
         versionName = flutter.versionName
         // Enable multidex for desugaring
         multiDexEnabled = true
+
+        // Google TV (32-bit ARMv7) release target. Keep this variant separate
+        // from the normal universal build so modern devices retain arm64.
+        ndk {
+            abiFilters += listOf("armeabi-v7a")
+        }
+    }
+
+    flavorDimensions += "device"
+    productFlavors {
+        create("googleTv32") {
+            dimension = "device"
+            applicationIdSuffix = ".tv32"
+            versionNameSuffix = "-tv32"
+            buildConfigField("boolean", "GOOGLE_TV_BUILD", "true")
+        }
+        create("universal") {
+            dimension = "device"
+        }
     }
 
     buildTypes {

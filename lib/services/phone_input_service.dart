@@ -25,14 +25,14 @@ class PhoneInputService {
 
   /// Start the server on the given port (default 8080).
   Future<String?> start({int port = 8080}) async {
-    if (_server != null) return _getUrl();
+    if (_server != null) return await _getUrl();
 
     try {
       // Bind to any IPv4 so phones on the same network can connect.
       _server = await HttpServer.bind(InternetAddress.anyIPv4, port);
       debugPrint('[PhoneInput] Server started on port $port');
       _server!.listen(_handleRequest);
-      return _getUrl();
+      return await _getUrl();
     } catch (e) {
       debugPrint('[PhoneInput] Failed to start: $e');
       return null;

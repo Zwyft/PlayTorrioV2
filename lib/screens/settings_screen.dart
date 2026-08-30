@@ -3087,7 +3087,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     required TextEditingController controller,
     String? hintText,
     bool obscureText = false,
-    TextInputType keyboardType = TextInputType.text,
     String? title,
     VoidCallback? onSave,
   }) {

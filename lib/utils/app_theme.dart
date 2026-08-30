@@ -297,10 +297,13 @@ class _FocusableControlState extends State<FocusableControl> with SingleTickerPr
                       borderRadius: BorderRadius.circular(widget.borderRadius),
                       border: (_isFocused || _isHovered)
                           ? Border.all(
-                              color: (widget.glowColor ?? AppTheme.primaryColor).withValues(alpha: 0.8),
-                              width: 2.5,
+                              color: widget.glowColor ?? AppTheme.primaryColor,
+                              width: 3,
                             )
-                          : null,
+                          : Border.all(
+                              color: Colors.transparent,
+                              width: 3,
+                            ),
                       boxShadow: (_isFocused || _isHovered) ? [
                         BoxShadow(
                           color: (widget.glowColor ?? AppTheme.primaryColor).withValues(alpha: 0.4),

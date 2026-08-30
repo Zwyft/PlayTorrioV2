@@ -573,19 +573,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
 
   Widget _buildTvContent() {
     final id = _visibleIds[_selectedIndex];
-    return Focus(
-      focusNode: _tvNavigationFocus,
-      autofocus: true,
-      onKeyEvent: (node, event) {
-        if (event is! KeyDownEvent) return KeyEventResult.ignored;
-        if (event.logicalKey == LogicalKeyboardKey.goBack ||
-            event.logicalKey == LogicalKeyboardKey.browserBack) {
-          _returnToDashboard();
-          return KeyEventResult.handled;
-        }
-        return KeyEventResult.ignored;
-      },
-      child: Scaffold(
+    return Scaffold(
         body: Stack(
           children: [
             Container(decoration: AppTheme.effectiveBackground),

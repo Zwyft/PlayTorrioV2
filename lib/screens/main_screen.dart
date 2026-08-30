@@ -573,37 +573,43 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
 
   Widget _buildTvContent() {
     final id = _visibleIds[_selectedIndex];
-    return Scaffold(
-      body: Stack(
-        children: [
-          Container(decoration: AppTheme.effectiveBackground),
-          // Back button overlay
-          Positioned(
-            top: 16,
-            left: 16,
-            child: GestureDetector(
-              onTap: _returnToDashboard,
-              child: Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: AppTheme.current.bgCard.withValues(alpha: 0.85),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.arrow_back_rounded, color: AppTheme.current.primaryColor, size: 20),
-                    const SizedBox(width: 6),
-                    Text(_navMeta[id]!['label'] as String,
-                      style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 14, fontWeight: FontWeight.w600)),
-                  ],
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) _returnToDashboard();
+      },
+      child: Scaffold(
+        body: Stack(
+          children: [
+            Container(decoration: AppTheme.effectiveBackground),
+            // Back button overlay
+            Positioned(
+              top: 16,
+              left: 16,
+              child: GestureDetector(
+                onTap: _returnToDashboard,
+                child: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppTheme.current.bgCard.withValues(alpha: 0.85),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.arrow_back_rounded, color: AppTheme.current.primaryColor, size: 20),
+                      const SizedBox(width: 6),
+                      Text(_navMeta[id]!['label'] as String,
+                        style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 14, fontWeight: FontWeight.w600)),
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
-          _allScreens[id]!,
-        ],
+            _allScreens[id]!,
+          ],
+        ),
       ),
     );
   }

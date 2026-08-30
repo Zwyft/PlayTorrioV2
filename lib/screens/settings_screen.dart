@@ -758,9 +758,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
         child: Column(
           children: [
-            // Header (always visible, tappable)
-            InkWell(
-              borderRadius: BorderRadius.circular(14),
+            // Header (always visible, tappable — FocusableControl for TV D-pad)
+            FocusableControl(
               onTap: () {
                 setState(() {
                   if (isExpanded) {
@@ -770,6 +769,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   }
                 });
               },
+              scaleOnFocus: 1.0,
+              borderRadius: 14,
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                 child: Row(
@@ -1380,28 +1381,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
             Row(
               children: [
                 Expanded(
-                  child: FocusableControl(
-                    onTap: () {
-                      if (Platform.isAndroid) {
-                        _showTvInputDialog(
-                          title: 'Real-Debrid API Key',
-                          hintText: 'Paste your API key',
-                          onSubmit: (val) {
-                            setState(() => _rdController.text = val);
-                          },
-                        );
-                      }
-                    },
-                    child: TextField(
-                      controller: _rdController,
-                      obscureText: true,
-                      decoration: InputDecoration(
-                        hintText: 'Enter Real-Debrid API Key',
-                        filled: true,
-                        fillColor: Colors.white.withValues(alpha: 0.05),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                      ),
-                    ),
+                  child: _buildTvAwareTextField(
+                    controller: _rdController,
+                    hintText: 'Enter Real-Debrid API Key',
+                    obscureText: true,
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -1411,18 +1394,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   },
                   child: ElevatedButton(
                     onPressed: _isVerifyingRD ? null : _saveRDApiKey,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.primaryColor,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                  child: _isVerifyingRD
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                        )
-                      : const Text('Save', style: TextStyle(fontWeight: FontWeight.bold)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.primaryColor,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: _isVerifyingRD
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          )
+                        : const Text('Save', style: TextStyle(fontWeight: FontWeight.bold)),
                   ),
                 ),
               ],
@@ -3091,6 +3074,46 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  /// TV-aware text field that lets the system keyboard handle input directly.
+  /// Shows a purple border when focused so the user can see which field is active.
+  /// Does NOT use FocusableControl — that widget intercepts Enter key events
+  /// and prevents the system keyboard from receiving them on Android TV.
+  Widget _buildTvAwareTextField({
+    required TextEditingController controller,
+    String? hintText,
+    bool obscureText = false,
+    TextInputType keyboardType = TextInputType.text,
+  }) {
+    return Builder(
+      builder: (context) {
+        return TextField(
+          controller: controller,
+          obscureText: obscureText,
+          keyboardType: keyboardType,
+          style: const TextStyle(color: Colors.white),
+          decoration: InputDecoration(
+            hintText: hintText,
+            hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3)),
+            filled: true,
+            fillColor: Colors.white.withValues(alpha: 0.05),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(
+                color: AppTheme.primaryColor,
+                width: 2,
+              ),
+            ),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          ),
+        );
+      },
     );
   }
 

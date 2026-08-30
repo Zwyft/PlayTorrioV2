@@ -859,7 +859,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
               ),
             ),
           CustomScrollView(
-            scrollCacheExtent: 500.0,
+            scrollCacheExtent: const CacheExtentStyle.pixel(500),
             physics: const BouncingScrollPhysics(),
             slivers: [
               // Hero

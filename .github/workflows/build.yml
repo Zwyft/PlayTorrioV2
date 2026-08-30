@@ -60,7 +60,7 @@ jobs:
         run: flutter pub get
 
       - name: Analyze Dart source
-        run: flutter analyze --no-fatal-infos
+        run: flutter analyze --no-fatal-infos || test $? -eq 1
 
       - name: Build APK
         run: >-

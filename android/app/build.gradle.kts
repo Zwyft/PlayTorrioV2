@@ -7,6 +7,10 @@ plugins {
 
 android {
     namespace = "com.example.play_torrio_native"
+
+    buildFeatures {
+        buildConfig = true
+    }
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 

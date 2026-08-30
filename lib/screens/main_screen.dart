@@ -54,6 +54,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   int _dashboardIndex = 0;
   Timer? _metricsDebounce;
   Timer? _metricsSafety;
+  final ScrollController _tvGridScrollController = ScrollController();
 
   /// All screens keyed by nav ID — created once, never recreated.
   late final Map<String, Widget> _allScreens;
@@ -251,6 +252,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   void dispose() {
     _metricsDebounce?.cancel();
     _metricsSafety?.cancel();
+    _tvGridScrollController.dispose();
     WidgetsBinding.instance.removeObserver(this);
     MainScreen.stremioSearchNotifier.removeListener(_onStremioSearch);
     MainScreen.requestTab.removeListener(_onRequestTab);
@@ -432,16 +434,38 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     final nextRow = (row + dy).clamp(0, maxRow);
     final nextCol = (col + dx).clamp(0, columns - 1);
     final next = nextRow * columns + nextCol;
-    // Ensure the target tile actually exists
     if (next >= 0 && next < total) {
       setState(() => _dashboardIndex = next);
+      _scrollToFocused(next);
     } else {
-      // Fallback: clamp to last valid tile
       final lastValid = total - 1;
       if (lastValid != _dashboardIndex) {
         setState(() => _dashboardIndex = lastValid);
+        _scrollToFocused(lastValid);
       }
     }
+  }
+
+  void _scrollToFocused(int index) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_tvGridScrollController.hasClients) return;
+      const columns = 4;
+      final row = index ~/ columns;
+      // Estimate tile height: available height / number of visible rows
+      // Each row ~100px with 18px spacing; scroll so the focused row is centered
+      final tileHeight = 118.0; // ~100 tile + 18 spacing
+      final headerHeight = 260.0; // title + padding above grid
+      final screenH = MediaQuery.of(context).size.height;
+      final viewportH = screenH - headerHeight - 80; // minus footer
+      final targetOffset = (row * tileHeight) - (viewportH / 2) + (tileHeight / 2);
+      final maxScroll = _tvGridScrollController.position.maxScrollExtent;
+      final clampedOffset = targetOffset.clamp(0.0, maxScroll);
+      _tvGridScrollController.animateTo(
+        clampedOffset,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOutCubic,
+      );
+    });
   }
 
   Widget _buildTvDashboard() {
@@ -498,6 +522,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
                   const SizedBox(height: 24),
                   Expanded(
                     child: GridView.builder(
+                      controller: _tvGridScrollController,
                       itemCount: _visibleIds.length,
                       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                         crossAxisCount: 4,

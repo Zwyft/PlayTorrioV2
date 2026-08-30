@@ -524,7 +524,14 @@ class _MobilePlayerScreenState extends State<MobilePlayerScreen>
   String? _subsMenuFolder;
 
   // ── Feature State ─────────────────────────────────────────────────────────
-  _HwDecMode _hwDecMode = _HwDecMode.autoSafe;
+  // Google TV (especially ARMv7) often fails with auto-safe HW decoding —
+  // video plays but screen is black. Default to auto-copy on TV builds.
+  static final bool _isGoogleTv =
+      const bool.fromEnvironment('PLAYTORRIO_GOOGLE_TV') ||
+      (Platform.isAndroid && MediaQueryData.fromView(
+        WidgetsBinding.instance.platformDispatcher.views.first,
+      ).size.shortestSide >= 600);
+  _HwDecMode _hwDecMode = _isGoogleTv ? _HwDecMode.autoCopy : _HwDecMode.autoSafe;
   bool _loopEnabled = false;
   double _subtitleDelay = 0.0;
   double _subtitleSize = 24.0;
@@ -610,10 +617,12 @@ class _MobilePlayerScreenState extends State<MobilePlayerScreen>
     // androidAttachSurfaceAfterVideoParameters: false fixes a blank-screen
     // race condition on some Android devices where the surface is attached
     // before mpv has negotiated video dimensions.
+    // On Google TV, disable Flutter-level HW accel — mpv handles its own
+    // hardware decoding via the hwdec property set in _configureMpvProperties.
     _controller = VideoController(
       _player,
-      configuration: const VideoControllerConfiguration(
-        enableHardwareAcceleration: true,
+      configuration: VideoControllerConfiguration(
+        enableHardwareAcceleration: !_isGoogleTv,
         androidAttachSurfaceAfterVideoParameters: false,
       ),
     );
@@ -1440,6 +1449,13 @@ class _MobilePlayerScreenState extends State<MobilePlayerScreen>
     // auto-safe on mobile: uses MediaCodec (Android) / VideoToolbox (iOS),
     // whitelisted to formats each platform reliably supports.
     await safeSet('hwdec', _hwDecMode.mpvValue);
+
+    if (_isGoogleTv) {
+      // Android TV: force mediacodec_embed video output for reliable
+      // surface rendering. auto-safe often causes black screen on TV boxes.
+      await safeSet('vo', 'mediacodec_embed');
+      await safeSet('gpu-context', 'androidmediacodec');
+    }
 
     // Zero-copy direct rendering — decoder writes straight to GPU texture.
     // Big win on mobile for battery + throughput on H.265/4K content.

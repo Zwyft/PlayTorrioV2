@@ -1521,36 +1521,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
         children: [
           const Text('API Key', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
           const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _torboxController,
-                  obscureText: true,
-                  decoration: InputDecoration(
-                    hintText: 'Enter TorBox API Key',
-                    filled: true,
-                    fillColor: Colors.white.withValues(alpha: 0.05),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              ElevatedButton(
-                onPressed: () async {
-                  await _debrid.saveTorBoxKey(_torboxController.text);
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('TorBox API Key Saved!')));
-                  }
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.primaryColor,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                child: const Text('Save', style: TextStyle(fontWeight: FontWeight.bold)),
-              ),
-            ],
+          _buildTvAwareTextField(
+            controller: _torboxController,
+            hintText: 'Enter TorBox API Key',
+            obscureText: true,
+            title: 'TorBox API Key',
+            onSave: () async {
+              await _debrid.saveTorBoxKey(_torboxController.text);
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('TorBox API Key Saved!')));
+              }
+            },
           ),
         ],
       ),
@@ -1565,36 +1546,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
         children: [
           const Text('API Key', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
           const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _alldebridController,
-                  obscureText: true,
-                  decoration: InputDecoration(
-                    hintText: 'Enter AllDebrid API Key',
-                    filled: true,
-                    fillColor: Colors.white.withValues(alpha: 0.05),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              ElevatedButton(
-                onPressed: () async {
-                  await _debrid.saveAllDebridKey(_alldebridController.text);
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('AllDebrid API Key Saved!')));
-                  }
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.primaryColor,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                child: const Text('Save', style: TextStyle(fontWeight: FontWeight.bold)),
-              ),
-            ],
+          _buildTvAwareTextField(
+            controller: _alldebridController,
+            hintText: 'Enter AllDebrid API Key',
+            obscureText: true,
+            title: 'AllDebrid API Key',
+            onSave: () async {
+              await _debrid.saveAllDebridKey(_alldebridController.text);
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('AllDebrid API Key Saved!')));
+              }
+            },
           ),
           const SizedBox(height: 8),
           InkWell(
@@ -1622,36 +1584,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
         children: [
           const Text('API Key', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
           const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _premiumizeController,
-                  obscureText: true,
-                  decoration: InputDecoration(
-                    hintText: 'Enter Premiumize API Key',
-                    filled: true,
-                    fillColor: Colors.white.withValues(alpha: 0.05),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              ElevatedButton(
-                onPressed: () async {
-                  await _debrid.savePremiumizeKey(_premiumizeController.text);
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Premiumize API Key Saved!')));
-                  }
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.primaryColor,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                child: const Text('Save', style: TextStyle(fontWeight: FontWeight.bold)),
-              ),
-            ],
+          _buildTvAwareTextField(
+            controller: _premiumizeController,
+            hintText: 'Enter Premiumize API Key',
+            obscureText: true,
+            title: 'Premiumize API Key',
+            onSave: () async {
+              await _debrid.savePremiumizeKey(_premiumizeController.text);
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Premiumize API Key Saved!')));
+              }
+            },
           ),
           const SizedBox(height: 8),
           InkWell(
@@ -1679,36 +1622,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
         children: [
           const Text('API Key', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
           const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _debridlinkController,
-                  obscureText: true,
-                  decoration: InputDecoration(
-                    hintText: 'Enter Debrid-Link API Key',
-                    filled: true,
-                    fillColor: Colors.white.withValues(alpha: 0.05),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              ElevatedButton(
-                onPressed: () async {
-                  await _debrid.saveDebridLinkKey(_debridlinkController.text);
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Debrid-Link API Key Saved!')));
-                  }
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.primaryColor,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                child: const Text('Save', style: TextStyle(fontWeight: FontWeight.bold)),
-              ),
-            ],
+          _buildTvAwareTextField(
+            controller: _debridlinkController,
+            hintText: 'Enter Debrid-Link API Key',
+            obscureText: true,
+            title: 'Debrid-Link API Key',
+            onSave: () async {
+              await _debrid.saveDebridLinkKey(_debridlinkController.text);
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Debrid-Link API Key Saved!')));
+              }
+            },
           ),
           const SizedBox(height: 8),
           InkWell(

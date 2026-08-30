@@ -1380,20 +1380,37 @@ class _SettingsScreenState extends State<SettingsScreen> {
             Row(
               children: [
                 Expanded(
-                  child: TextField(
-                    controller: _rdController,
-                    obscureText: true,
-                    decoration: InputDecoration(
-                      hintText: 'Enter Real-Debrid API Key',
-                      filled: true,
-                      fillColor: Colors.white.withValues(alpha: 0.05),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                  child: FocusableControl(
+                    onTap: () {
+                      if (Platform.isAndroid) {
+                        _showTvInputDialog(
+                          title: 'Real-Debrid API Key',
+                          hintText: 'Paste your API key',
+                          onSubmit: (val) {
+                            setState(() => _rdController.text = val);
+                          },
+                        );
+                      }
+                    },
+                    child: TextField(
+                      controller: _rdController,
+                      obscureText: true,
+                      decoration: InputDecoration(
+                        hintText: 'Enter Real-Debrid API Key',
+                        filled: true,
+                        fillColor: Colors.white.withValues(alpha: 0.05),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                      ),
                     ),
                   ),
                 ),
                 const SizedBox(width: 12),
-                ElevatedButton(
-                  onPressed: _isVerifyingRD ? null : _saveRDApiKey,
+                FocusableControl(
+                  onTap: () {
+                    if (Platform.isAndroid && !_isVerifyingRD) _saveRDApiKey();
+                  },
+                  child: ElevatedButton(
+                    onPressed: _isVerifyingRD ? null : _saveRDApiKey,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppTheme.primaryColor,
                     foregroundColor: Colors.white,
@@ -1406,6 +1423,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                         )
                       : const Text('Save', style: TextStyle(fontWeight: FontWeight.bold)),
+                  ),
                 ),
               ],
             ),
@@ -3078,8 +3096,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _buildFocusableDropdown(String title, String subtitle, String value, List<String> options, ValueChanged<String?> onChanged) {
     return FocusableControl(
-      onTap: () {},
-      scaleOnFocus: 1.0, // Disable scaling
+      onTap: () {
+        // On Android TV, show a dialog so D-pad can select options.
+        if (Platform.isAndroid) {
+          _showTvOptionDialog(title, options, value, onChanged);
+        }
+      },
+      scaleOnFocus: 1.0,
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Row(
@@ -3121,6 +3144,132 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  void _showTvInputDialog({required String title, String hintText = '', required ValueChanged<String> onSubmit}) {
+    final controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          backgroundColor: AppTheme.current.bgDark,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: AppTheme.current.primaryColor.withValues(alpha: 0.3)),
+          ),
+          title: Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            style: const TextStyle(color: Colors.white, fontSize: 16),
+            decoration: InputDecoration(
+              hintText: hintText,
+              hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3)),
+              filled: true,
+              fillColor: Colors.white.withValues(alpha: 0.05),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: AppTheme.current.primaryColor.withValues(alpha: 0.3)),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: AppTheme.current.primaryColor),
+              ),
+            ),
+            onSubmitted: (val) {
+              onSubmit(val);
+              Navigator.of(ctx).pop();
+            },
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: Text('Cancel', style: TextStyle(color: AppTheme.current.primaryColor)),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                onSubmit(controller.text);
+                Navigator.of(ctx).pop();
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.current.primaryColor,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('OK'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showTvOptionDialog(String title, List<String> options, String currentValue, ValueChanged<String?> onChanged) {
+    int selectedIndex = options.indexOf(currentValue);
+    if (selectedIndex < 0) selectedIndex = 0;
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) {
+            return AlertDialog(
+              backgroundColor: AppTheme.current.bgDark,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: BorderSide(color: AppTheme.current.primaryColor.withValues(alpha: 0.3)),
+              ),
+              title: Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              content: SizedBox(
+                width: 350,
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: options.length,
+                  itemBuilder: (ctx, i) {
+                    final isSelected = i == selectedIndex;
+                    return Focus(
+                      autofocus: i == selectedIndex,
+                      child: Builder(
+                        builder: (ctx) {
+                          final hasFocus = Focus.of(ctx).hasFocus;
+                          return ListTile(
+                            title: Text(
+                              options[i],
+                              style: TextStyle(
+                                color: hasFocus || isSelected ? Colors.white : Colors.white70,
+                                fontWeight: hasFocus ? FontWeight.bold : FontWeight.normal,
+                                fontSize: 16,
+                              ),
+                            ),
+                            leading: Icon(
+                              isSelected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                              color: hasFocus ? AppTheme.current.primaryColor : Colors.white38,
+                            ),
+                            tileColor: hasFocus
+                                ? AppTheme.current.primaryColor.withValues(alpha: 0.15)
+                                : Colors.transparent,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            onTap: () {
+                              onChanged(options[i]);
+                              Navigator.of(ctx).pop();
+                            },
+                          );
+                        },
+                      ),
+                    );
+                  },
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  child: Text('Cancel', style: TextStyle(color: AppTheme.current.primaryColor)),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 }

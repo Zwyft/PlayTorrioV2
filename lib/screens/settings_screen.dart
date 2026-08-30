@@ -3148,7 +3148,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   void _showTvInputDialog({required String title, String hintText = '', required ValueChanged<String> onSubmit}) {
-    final textBuffer = StringBuffer();
     showDialog(
       context: context,
       barrierDismissible: true,

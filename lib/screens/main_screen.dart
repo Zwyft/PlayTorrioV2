@@ -407,19 +407,35 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   }
 
   void _moveDashboard(int dx, int dy) {
-    const columns = 4;
-    final row = _dashboardIndex ~/ columns;
-    final column = _dashboardIndex % columns;
-    final nextRow = (row + dy).clamp(0, (_visibleIds.length - 1) ~/ columns);
-    final nextColumn = (column + dx).clamp(0, columns - 1);
-    final next = nextRow * columns + nextColumn;
-    if (next < _visibleIds.length) setState(() => _dashboardIndex = next);
+    final next = _dashboardIndex + dx + dy;
+    if (next >= 0 && next < _visibleIds.length) {
+      setState(() => _dashboardIndex = next);
+    }
   }
 
   Widget _buildTvDashboard() {
     return Focus(
       focusNode: _tvNavigationFocus,
       autofocus: true,
+      onKeyEvent: (node, event) {
+        if (event is! KeyDownEvent) return KeyEventResult.ignored;
+        final key = event.logicalKey;
+        if (key == LogicalKeyboardKey.arrowRight || key == LogicalKeyboardKey.arrowDown) {
+          _moveDashboard(1, 0);
+          return KeyEventResult.handled;
+        }
+        if (key == LogicalKeyboardKey.arrowLeft || key == LogicalKeyboardKey.arrowUp) {
+          _moveDashboard(-1, 0);
+          return KeyEventResult.handled;
+        }
+        if (key == LogicalKeyboardKey.enter ||
+            key == LogicalKeyboardKey.select ||
+            key == LogicalKeyboardKey.gameButtonA) {
+          _onItemTapped(_dashboardIndex);
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      },
       child: Scaffold(
         body: Container(
           decoration: AppTheme.effectiveBackground,

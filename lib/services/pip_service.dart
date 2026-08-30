@@ -6,7 +6,6 @@
 // callers remain unchanged while Android TV playback continues normally.
 
 import 'dart:async';
-import 'dart:io' show Platform;
 
 class PipService {
   PipService._();

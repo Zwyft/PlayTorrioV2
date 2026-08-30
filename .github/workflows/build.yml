@@ -80,7 +80,7 @@ jobs:
           yes | sdkmanager --licenses >/dev/null || true
 
       - name: Get dependencies
-        run: flutter pub get --offline
+        run: flutter pub get --offline 2>/dev/null || flutter pub get
 
       - name: Analyze Dart source
         run: flutter analyze --no-fatal-infos

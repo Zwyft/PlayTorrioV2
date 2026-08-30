@@ -3492,18 +3492,41 @@ class _MobilePlayerScreenState extends State<MobilePlayerScreen>
   // ─────────────────────────────────────────────────────────────────────────
 
   // ── TV Remote D-pad handler ──────────────────────────────────────────────
+  // When controls are HIDDEN, D-pad shortcuts apply (Left/Right=seek,
+  // Up=show, Down=hide, OK=play-pause). When controls are VISIBLE,
+  // arrow keys pass through so the user can navigate the button toolbar.
   KeyEventResult _handleTvRemoteKey(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
     final key = event.logicalKey;
 
-    // Back → exit player (handled by PopScope, but just in case)
+    // Back → always exit player
     if (key == LogicalKeyboardKey.goBack ||
         key == LogicalKeyboardKey.browserBack) {
       _exitPlayer();
       return KeyEventResult.handled;
     }
 
-    // OK / Enter / Select / GameButtonA → play/pause
+    // When controls are visible, only intercept OK (play-pause) and Back.
+    // Let arrow keys pass through so FocusableControl buttons in the
+    // toolbar (back, audio, subtitles, PiP, etc.) can be navigated.
+    if (_showControls) {
+      if (key == LogicalKeyboardKey.enter ||
+          key == LogicalKeyboardKey.select ||
+          key == LogicalKeyboardKey.gameButtonA) {
+        if (_isPlayingNotifier.value) {
+          _player.pause();
+        } else {
+          _player.play();
+        }
+        _startHideTimer();
+        return KeyEventResult.handled;
+      }
+      // Let arrow keys pass through to control buttons
+      return KeyEventResult.ignored;
+    }
+
+    // Controls hidden — apply shortcut keys
+    // OK / Enter / Select → play/pause + show controls
     if (key == LogicalKeyboardKey.enter ||
         key == LogicalKeyboardKey.select ||
         key == LogicalKeyboardKey.gameButtonA) {
@@ -3512,9 +3535,7 @@ class _MobilePlayerScreenState extends State<MobilePlayerScreen>
       } else {
         _player.play();
       }
-      if (!_showControls) {
-        setState(() => _showControls = true);
-      }
+      setState(() => _showControls = true);
       _startHideTimer();
       return KeyEventResult.handled;
     }
@@ -3527,7 +3548,7 @@ class _MobilePlayerScreenState extends State<MobilePlayerScreen>
           ? Duration.zero
           : pos - const Duration(seconds: 10);
       _player.seek(newPos);
-      if (!_showControls) setState(() => _showControls = true);
+      setState(() => _showControls = true);
       _startHideTimer();
       return KeyEventResult.handled;
     }
@@ -3539,24 +3560,19 @@ class _MobilePlayerScreenState extends State<MobilePlayerScreen>
       final dur = _durationNotifier.value;
       final newPos = (pos + const Duration(seconds: 10)) > dur ? dur : pos + const Duration(seconds: 10);
       _player.seek(newPos);
-      if (!_showControls) setState(() => _showControls = true);
+      setState(() => _showControls = true);
       _startHideTimer();
       return KeyEventResult.handled;
     }
 
     // Up → show controls
     if (key == LogicalKeyboardKey.arrowUp) {
-      if (!_showControls) setState(() => _showControls = true);
+      setState(() => _showControls = true);
       _startHideTimer();
       return KeyEventResult.handled;
     }
 
-    // Down → hide controls
-    if (key == LogicalKeyboardKey.arrowDown) {
-      if (_showControls) setState(() => _showControls = false);
-      return KeyEventResult.handled;
-    }
-
+    // Down → hide controls (already hidden, but no-op is fine)
     return KeyEventResult.ignored;
   }
 
@@ -3818,11 +3834,10 @@ class _MobilePlayerScreenState extends State<MobilePlayerScreen>
           ),
         ),
       ),
-    ),
   );
   }
 
-              Widget _buildEmbeddedError() {
+  Widget _buildEmbeddedError() {
               return Container(
               color: Colors.black.withValues(alpha: 0.6),
               child: Center(

@@ -3491,6 +3491,75 @@ class _MobilePlayerScreenState extends State<MobilePlayerScreen>
   //  BUILD
   // ─────────────────────────────────────────────────────────────────────────
 
+  // ── TV Remote D-pad handler ──────────────────────────────────────────────
+  KeyEventResult _handleTvRemoteKey(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent) return KeyEventResult.ignored;
+    final key = event.logicalKey;
+
+    // Back → exit player (handled by PopScope, but just in case)
+    if (key == LogicalKeyboardKey.goBack ||
+        key == LogicalKeyboardKey.browserBack) {
+      _exitPlayer();
+      return KeyEventResult.handled;
+    }
+
+    // OK / Enter / Select / GameButtonA → play/pause
+    if (key == LogicalKeyboardKey.enter ||
+        key == LogicalKeyboardKey.select ||
+        key == LogicalKeyboardKey.gameButtonA) {
+      if (_isPlayingNotifier.value) {
+        _player.pause();
+      } else {
+        _player.play();
+      }
+      if (!_showControls) {
+        setState(() => _showControls = true);
+      }
+      _startHideTimer();
+      return KeyEventResult.handled;
+    }
+
+    // Left → seek back 10s
+    if (key == LogicalKeyboardKey.arrowLeft) {
+      if (_isLocked) return KeyEventResult.ignored;
+      final pos = _positionNotifier.value;
+      final newPos = (pos - const Duration(seconds: 10)) < Duration.zero
+          ? Duration.zero
+          : pos - const Duration(seconds: 10);
+      _player.seek(newPos);
+      if (!_showControls) setState(() => _showControls = true);
+      _startHideTimer();
+      return KeyEventResult.handled;
+    }
+
+    // Right → seek forward 10s
+    if (key == LogicalKeyboardKey.arrowRight) {
+      if (_isLocked) return KeyEventResult.ignored;
+      final pos = _positionNotifier.value;
+      final dur = _durationNotifier.value;
+      final newPos = (pos + const Duration(seconds: 10)) > dur ? dur : pos + const Duration(seconds: 10);
+      _player.seek(newPos);
+      if (!_showControls) setState(() => _showControls = true);
+      _startHideTimer();
+      return KeyEventResult.handled;
+    }
+
+    // Up → show controls
+    if (key == LogicalKeyboardKey.arrowUp) {
+      if (!_showControls) setState(() => _showControls = true);
+      _startHideTimer();
+      return KeyEventResult.handled;
+    }
+
+    // Down → hide controls
+    if (key == LogicalKeyboardKey.arrowDown) {
+      if (_showControls) setState(() => _showControls = false);
+      return KeyEventResult.handled;
+    }
+
+    return KeyEventResult.ignored;
+  }
+
   @override
   Widget build(BuildContext context) {
     return PopScope(
@@ -3503,11 +3572,14 @@ class _MobilePlayerScreenState extends State<MobilePlayerScreen>
         data: ThemeData.dark(),
         child: Scaffold(
           backgroundColor: Colors.black,
-          body: Stack(
-            fit: StackFit.expand,
-            children: [
-              // ── 1. Video ─────────────────────────────────────────────────
-              Video(
+          body: Focus(
+            autofocus: true,
+            onKeyEvent: _handleTvRemoteKey,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                // ── 1. Video ─────────────────────────────────────────────────
+                Video(
                 controller: _controller,
                 controls: NoVideoControls,
                 fit: _videoFit,
@@ -3742,11 +3814,13 @@ class _MobilePlayerScreenState extends State<MobilePlayerScreen>
               // ── 9. Embedded Error Overlay ───────────────────────────────
               if (_hasError) _buildEmbeddedError(),
               ],
-              ),
-              ),
-              ),
-              );
-              }
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+  }
 
               Widget _buildEmbeddedError() {
               return Container(

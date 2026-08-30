@@ -44,16 +44,16 @@ class PhoneInputService {
     _server = null;
   }
 
-  String? _getUrl() {
+  Future<String?> _getUrl() async {
     if (_server == null) return null;
-    final ip = _getLocalIp();
+    final ip = await _getLocalIp();
     if (ip == null) return null;
     return 'http://$ip:${_server!.port}';
   }
 
-  String? _getLocalIp() {
+  Future<String?> _getLocalIp() async {
     try {
-      final interfaces = NetworkInterface.list(
+      final interfaces = await NetworkInterface.list(
         type: InternetAddressType.IPv4,
         includeLinkLocal: false,
       );

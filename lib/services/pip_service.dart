@@ -13,12 +13,16 @@ class PipService {
   static final PipService instance = PipService._();
 
   bool get isSupported => false;
+  bool get isDesktopActive => false;
+
+  Stream<bool> get androidPipChanges => const Stream<bool>.empty();
+  Stream<bool> get desktopPipChanges => const Stream<bool>.empty();
+  Stream<bool> get pipStatusStream => const Stream<bool>.empty();
 
   Future<bool> enter({int width = 16, int height = 9}) async => false;
 
   Future<bool> exit() async => false;
-
-  Stream<bool> get pipStatusStream => const Stream<bool>.empty();
+  Future<bool> leave() async => false;
 
   Future<bool> toggle({int width = 16, int height = 9}) async => false;
 }

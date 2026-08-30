@@ -22,6 +22,7 @@ import '../services/prowlarr_service.dart';
 import '../services/app_updater_service.dart';
 import '../widgets/update_dialog.dart';
 import '../utils/app_theme.dart';
+import '../services/phone_input_service.dart';
 import 'lists_screen.dart';
 import 'webstreamr_settings_screen.dart';
 
@@ -763,6 +764,41 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
 
                     const SizedBox(height: 24),
+                    // ── Connect Phone button (TV-friendly) ──
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: FocusableControl(
+                        onTap: _showPhoneInputDialog,
+                        scaleOnFocus: 1.0,
+                        glowColor: AppTheme.current.accentColor,
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          decoration: BoxDecoration(
+                            color: AppTheme.current.accentColor.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: AppTheme.current.accentColor.withValues(alpha: 0.3)),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.phone_android, color: AppTheme.current.accentColor, size: 22),
+                              const SizedBox(width: 10),
+                              Text(
+                                'ENTER API KEY FROM PHONE',
+                                style: TextStyle(
+                                  color: AppTheme.current.accentColor,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 1.5,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
                     // ── Save All button (TV-friendly) ──
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 4),
@@ -3290,6 +3326,93 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
       ),
     );
+  }
+
+  void _showPhoneInputDialog() {
+    final phoneService = PhoneInputService();
+    if (phoneService.isRunning) {
+      phoneService.stop();
+    }
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) {
+            return AlertDialog(
+              backgroundColor: AppTheme.current.bgDark,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: BorderSide(color: AppTheme.current.primaryColor.withValues(alpha: 0.3)),
+              ),
+              title: const Text('Connect Phone', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              content: FutureBuilder<String?>(
+                future: phoneService.start(),
+                builder: (ctx, snap) {
+                  if (snap.connectionState == ConnectionState.waiting) {
+                    return const Padding(
+                      padding: EdgeInsets.all(20),
+                      child: Center(child: CircularProgressIndicator(color: AppTheme.primaryColor)),
+                    );
+                  }
+                  final url = snap.data;
+                  if (url == null) {
+                    return const Text('Failed to start server. Make sure you are on Wi-Fi.',
+                      style: TextStyle(color: Colors.redAccent));
+                  }
+                  return Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text('Open this URL on your phone:',
+                        style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 13)),
+                      const SizedBox(height: 12),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.05),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AppTheme.current.primaryColor.withValues(alpha: 0.3)),
+                        ),
+                        child: Text(
+                          url,
+                          style: const TextStyle(
+                            color: AppTheme.primaryColor,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            fontFamily: 'monospace',
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        'Make sure your phone is on the same Wi-Fi as your TV.',
+                        style: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 11),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  );
+                },
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    phoneService.stop();
+                    Navigator.of(ctx).pop();
+                  },
+                  child: Text('Close', style: TextStyle(color: AppTheme.current.primaryColor)),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    ).then((_) {
+      phoneService.stop();
+      // Reload settings after phone input closes
+      _loadSettings();
+    });
   }
 
   void _showTvOptionDialog(String title, List<String> options, String currentValue, ValueChanged<String?> onChanged) {

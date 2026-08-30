@@ -425,13 +425,22 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
 
   void _moveDashboard(int dx, int dy) {
     const columns = 4;
+    final total = _visibleIds.length;
     final row = _dashboardIndex ~/ columns;
     final col = _dashboardIndex % columns;
-    final nextRow = (row + dy).clamp(0, (_visibleIds.length - 1) ~/ columns);
+    final maxRow = (total - 1) ~/ columns;
+    final nextRow = (row + dy).clamp(0, maxRow);
     final nextCol = (col + dx).clamp(0, columns - 1);
     final next = nextRow * columns + nextCol;
-    if (next >= 0 && next < _visibleIds.length) {
+    // Ensure the target tile actually exists
+    if (next >= 0 && next < total) {
       setState(() => _dashboardIndex = next);
+    } else {
+      // Fallback: clamp to last valid tile
+      final lastValid = total - 1;
+      if (lastValid != _dashboardIndex) {
+        setState(() => _dashboardIndex = lastValid);
+      }
     }
   }
 
@@ -442,12 +451,20 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
       onKeyEvent: (node, event) {
         if (event is! KeyDownEvent) return KeyEventResult.ignored;
         final key = event.logicalKey;
-        if (key == LogicalKeyboardKey.arrowRight || key == LogicalKeyboardKey.arrowDown) {
+        if (key == LogicalKeyboardKey.arrowRight) {
           _moveDashboard(1, 0);
           return KeyEventResult.handled;
         }
-        if (key == LogicalKeyboardKey.arrowLeft || key == LogicalKeyboardKey.arrowUp) {
+        if (key == LogicalKeyboardKey.arrowLeft) {
           _moveDashboard(-1, 0);
+          return KeyEventResult.handled;
+        }
+        if (key == LogicalKeyboardKey.arrowDown) {
+          _moveDashboard(0, 1);
+          return KeyEventResult.handled;
+        }
+        if (key == LogicalKeyboardKey.arrowUp) {
+          _moveDashboard(0, -1);
           return KeyEventResult.handled;
         }
         if (key == LogicalKeyboardKey.enter ||

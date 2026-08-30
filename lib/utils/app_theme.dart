@@ -295,6 +295,12 @@ class _FocusableControlState extends State<FocusableControl> with SingleTickerPr
                     duration: const Duration(milliseconds: 200),
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(widget.borderRadius),
+                      border: (_isFocused || _isHovered)
+                          ? Border.all(
+                              color: (widget.glowColor ?? AppTheme.primaryColor).withValues(alpha: 0.8),
+                              width: 2.5,
+                            )
+                          : null,
                       boxShadow: (_isFocused || _isHovered) ? [
                         BoxShadow(
                           color: (widget.glowColor ?? AppTheme.primaryColor).withValues(alpha: 0.4),

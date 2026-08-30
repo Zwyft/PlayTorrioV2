@@ -60,7 +60,7 @@ jobs:
         run: flutter pub get
 
       - name: Analyze Dart source
-        run: flutter analyze --no-fatal-infos || test $? -eq 1
+        run: flutter analyze --no-fatal-infos
 
       - name: Build APK
         run: >-
@@ -70,15 +70,26 @@ jobs:
           --target-platform ${{ matrix.platform }}
           --dart-define=PLAYTORRIO_GOOGLE_TV=true
 
-      - name: Verify APK output and native libraries
-        run: |
-          APK="build/app/outputs/flutter-apk/app-${{ matrix.flavor }}-release.apk"
-          test -f "$APK"
-          echo "Built $APK"
-          unzip -l "$APK" | grep -E "lib/${{ matrix.abi }}/" || {
-            echo "Warning: no packaged ${{ matrix.abi }} libraries found."
-            echo "Flutter may have packed native libraries under a different ABI layout."
-          }
+      - name: Verify APK output and native libraries                                                                                ▄
+    +         shell: bash                                                                                                                 █
+    +         run: |                                                                                                                      █
+    +           set -euo pipefail                                                                                                         █
+    +           APK="build/app/outputs/flutter-apk/app-${{ matrix.flavor }}-release.apk"                                                  █
+    +                                                                                                                                     ▀
+    +           if [[ ! -s "$APK" ]]; then
+    +             echo "APK was not created: $APK" >&2
+    +             exit 1
+    +           fi
+    +
+    +           echo "Built $APK ($(du -h "$APK" | cut -f1))"
+    +
+    +           # Native libraries are optional for builds whose dependencies contain no
+    +           # native code. Do not make a successful APK fail on an empty ABI folder.
+    +           if unzip -l "$APK" | grep -Fq "lib/${{ matrix.abi }}/"; then
+    +             echo "Verified native ABI: ${{ matrix.abi }}"
+    +           else
+    +             echo "No packaged native libraries found for ${{ matrix.abi }}; continuing."
+    +           fi
 
       - name: Upload APK
         uses: actions/upload-artifact@v4

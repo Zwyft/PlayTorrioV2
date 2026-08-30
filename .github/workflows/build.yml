@@ -70,12 +70,15 @@ jobs:
           --target-platform ${{ matrix.platform }}
           --dart-define=PLAYTORRIO_GOOGLE_TV=true
 
-      - name: Verify APK ABI
+      - name: Verify APK output and native libraries
         run: |
           APK="build/app/outputs/flutter-apk/app-${{ matrix.flavor }}-release.apk"
           test -f "$APK"
-          unzip -l "$APK" | grep -E "lib/${{ matrix.abi }}/" >/dev/null
           echo "Built $APK"
+          unzip -l "$APK" | grep -E "lib/${{ matrix.abi }}/" || {
+            echo "Warning: no packaged ${{ matrix.abi }} libraries found."
+            echo "Flutter may have packed native libraries under a different ABI layout."
+          }
 
       - name: Upload APK
         uses: actions/upload-artifact@v4

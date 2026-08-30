@@ -12,7 +12,7 @@ env:
   FLUTTER_CHANNEL: stable
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   android-tv:
@@ -114,10 +114,17 @@ jobs:
           # Copy APK to a clean name for upload
           cp "$APK" "${{ matrix.artifact }}.apk"
 
-      - name: Upload APK
+      - name: Upload APK as artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
           path: ${{ matrix.artifact }}.apk
           if-no-files-found: error
           compression-level: 0
+
+      - name: Upload APK to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ matrix.artifact }}.apk
+          make_latest: false

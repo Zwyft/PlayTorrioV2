@@ -1385,6 +1385,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     controller: _rdController,
                     hintText: 'Enter Real-Debrid API Key',
                     obscureText: true,
+                    title: 'Real-Debrid API Key',
+                    onSave: () => _saveRDApiKey(),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -3077,44 +3079,122 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  /// TV-aware text field that lets the system keyboard handle input directly.
-  /// Shows a purple border when focused so the user can see which field is active.
-  /// Does NOT use FocusableControl — that widget intercepts Enter key events
-  /// and prevents the system keyboard from receiving them on Android TV.
+  /// TV-aware text input tile. Shows current value (or hint) in a focusable
+  /// row. Pressing OK/Enter opens a modal dialog where the user can type with
+  /// the system keyboard. The value is only committed on Save — pressing Back
+  /// discards changes and returns to settings navigation without getting stuck.
   Widget _buildTvAwareTextField({
     required TextEditingController controller,
     String? hintText,
     bool obscureText = false,
     TextInputType keyboardType = TextInputType.text,
+    String? title,
+    VoidCallback? onSave,
   }) {
-    return Builder(
-      builder: (context) {
-        return TextField(
-          controller: controller,
+    final currentVal = controller.text;
+    final hasValue = currentVal.isNotEmpty;
+    return FocusableControl(
+      onTap: () {
+        _showTvInputSaveDialog(
+          title: title ?? (hintText ?? 'Enter value'),
+          initialValue: currentVal,
           obscureText: obscureText,
-          keyboardType: keyboardType,
-          style: const TextStyle(color: Colors.white),
-          decoration: InputDecoration(
-            hintText: hintText,
-            hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3)),
-            filled: true,
-            fillColor: Colors.white.withValues(alpha: 0.05),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide.none,
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(
-                color: AppTheme.primaryColor,
-                width: 2,
-              ),
-            ),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          ),
+          onSubmit: (val) {
+            controller.text = val;
+            if (onSave != null) onSave();
+          },
         );
       },
+      scaleOnFocus: 1.0,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    hintText ?? 'Enter value',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: hasValue ? Colors.white : Colors.white38,
+                    ),
+                  ),
+                  if (hasValue) ...[const SizedBox(height: 4),
+                    Text(
+                      obscureText ? '•' * currentVal.length : currentVal,
+                      style: const TextStyle(color: Colors.white54, fontSize: 12),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            Icon(Icons.edit_rounded, color: AppTheme.current.primaryColor, size: 18),
+          ],
+        ),
+      ),
     );
+  }
+
+  /// Modal dialog for TV text input. Opens the system keyboard in a contained
+  /// dialog so the user can type and then explicitly Save or Cancel.
+  void _showTvInputSaveDialog({
+    required String title,
+    required String initialValue,
+    bool obscureText = false,
+    required ValueChanged<String> onSubmit,
+  }) {
+    final ctrl = TextEditingController(text: initialValue);
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) {
+        return AlertDialog(
+          backgroundColor: AppTheme.current.bgDark,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: AppTheme.current.primaryColor.withValues(alpha: 0.3)),
+          ),
+          title: Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          content: TextField(
+            controller: ctrl,
+            obscureText: obscureText,
+            autofocus: true,
+            style: const TextStyle(color: Colors.white),
+            decoration: InputDecoration(
+              hintText: title,
+              hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3)),
+              filled: true,
+              fillColor: Colors.white.withValues(alpha: 0.05),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none,
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: AppTheme.primaryColor, width: 2),
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: Text('Cancel', style: TextStyle(color: AppTheme.current.primaryColor)),
+            ),
+            TextButton(
+              onPressed: () {
+                onSubmit(ctrl.text);
+                Navigator.of(ctx).pop();
+              },
+              child: const Text('Save', style: TextStyle(color: Colors.greenAccent)),
+            ),
+          ],
+        );
+      },
+    ).then((_) => ctrl.dispose());
   }
 
   Widget _buildFocusableDropdown(String title, String subtitle, String value, List<String> options, ValueChanged<String?> onChanged) {

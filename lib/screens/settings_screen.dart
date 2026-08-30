@@ -1053,9 +1053,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               child: child,
             );
           },
-          onReorder: (oldIndex, newIndex) {
+          onReorderItem: (oldIndex, newIndex) {
             setState(() {
-              if (newIndex > oldIndex) newIndex--;
               final item = _navbarOrder.removeAt(oldIndex);
               _navbarOrder.insert(newIndex, item);
             });
@@ -2986,8 +2985,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               physics: const NeverScrollableScrollPhysics(),
               buildDefaultDragHandles: false,
               itemCount: order.length,
-              onReorder: (oldIndex, newIndex) async {
-                if (newIndex > oldIndex) newIndex -= 1;
+              onReorderItem: (oldIndex, newIndex) async {
                 final item = order.removeAt(oldIndex);
                 order.insert(newIndex, item);
                 setState(() => _streamProviderOrder = List<String>.from(order));

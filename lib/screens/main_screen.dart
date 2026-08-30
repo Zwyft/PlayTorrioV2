@@ -255,7 +255,37 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
 
     if (_isGoogleTv) return _buildTvDashboard();
 
-    return Scaffold(
+    return Focus(
+      focusNode: _tvNavigationFocus,
+      autofocus: false,
+      onKeyEvent: (node, event) {
+        if (event is! KeyDownEvent) return KeyEventResult.ignored;
+        final key = event.logicalKey;
+        if (key == LogicalKeyboardKey.arrowRight) {
+          _moveDashboard(1, 0);
+          return KeyEventResult.handled;
+        }
+        if (key == LogicalKeyboardKey.arrowLeft) {
+          _moveDashboard(-1, 0);
+          return KeyEventResult.handled;
+        }
+        if (key == LogicalKeyboardKey.arrowDown) {
+          _moveDashboard(0, 1);
+          return KeyEventResult.handled;
+        }
+        if (key == LogicalKeyboardKey.arrowUp) {
+          _moveDashboard(0, -1);
+          return KeyEventResult.handled;
+        }
+        if (key == LogicalKeyboardKey.enter ||
+            key == LogicalKeyboardKey.select ||
+            key == LogicalKeyboardKey.gameButtonA) {
+          _onItemTapped(_dashboardIndex);
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      },
+      child: Scaffold(
       body: Stack(
         children: [
           // Base gradient
@@ -372,6 +402,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
       bottomNavigationBar: useNavRail
           ? null
           : _buildScrollableBottomNav(),
+      ),
     );
   }
 

@@ -859,7 +859,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
               ),
             ),
           CustomScrollView(
-            scrollCacheExtent: 500,
+            scrollCacheExtent: const ScrollCacheExtent(500),
             physics: const BouncingScrollPhysics(),
             slivers: [
               // Hero
@@ -910,7 +910,8 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                       );
                       final isStreaming = await SettingsService().isStreamingModeEnabled();
                       if (!mounted) return;
-                      Navigator.push(context, MaterialPageRoute(
+                      final navigator = Navigator.of(context);
+                      navigator.push(MaterialPageRoute(
                         builder: (_) => isStreaming
                             ? StreamingDetailsScreen(
                                 movie: movie,

@@ -974,7 +974,7 @@ class JellyfinService {
       if (supportsDirectPlay || supportsDirectStream) {
         if (!forceTranscode && sourcePath.startsWith('http')) {
           debugPrint('[Jellyfin] Remote source → forced transcode');
-          return getPlaybackInfo(itemId, startTimeTicks: startTimeTicks, forceTranscode: true);
+          return await getPlaybackInfo(itemId, startTimeTicks: startTimeTicks, forceTranscode: true);
         }
 
         _lastPlaySessionId = playSessionId;

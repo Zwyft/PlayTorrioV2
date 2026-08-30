@@ -62,7 +62,7 @@ class PipService {
         return status == fp.PiPStatus.enabled;
       }
       if (Platform.isWindows || Platform.isMacOS) {
-        return _enterDesktop(width: width, height: height);
+        return await _enterDesktop(width: width, height: height);
       }
     } catch (e) {
       debugPrint('[PipService] enter failed: $e');

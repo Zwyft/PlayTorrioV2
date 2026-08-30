@@ -333,7 +333,7 @@ class AnimeService {
           final m = (raw as Map).cast<String, dynamic>();
           final ani = (m['ani_id'] ?? '').toString();
           if (ani == anime.id.toString()) {
-            return _loadAnikotoSeries(m['id'] as int);
+            return await _loadAnikotoSeries(m['id'] as int);
           }
         }
         if (data.length < perPage) break; // last page

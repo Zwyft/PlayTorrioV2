@@ -255,10 +255,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
 
     if (_isGoogleTv) return _buildTvDashboard();
 
-    return Focus(
-      focusNode: _tvNavigationFocus,
-      autofocus: false,
-      child: Scaffold(
+    return Scaffold(
       body: Stack(
         children: [
           // Base gradient
@@ -375,7 +372,6 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
       bottomNavigationBar: useNavRail
           ? null
           : _buildScrollableBottomNav(),
-      ),
     );
   }
 

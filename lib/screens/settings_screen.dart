@@ -359,6 +359,53 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  // ── Save All API Keys (TV-friendly) ──
+  Future<void> _saveAllApiKeys() async {
+    final keys = <String, String?>{};
+    if (_rdController.text.trim().isNotEmpty) keys['Real-Debrid'] = _rdController.text.trim();
+    if (_torboxController.text.trim().isNotEmpty) keys['TorBox'] = _torboxController.text.trim();
+    if (_alldebridController.text.trim().isNotEmpty) keys['AllDebrid'] = _alldebridController.text.trim();
+    if (_premiumizeController.text.trim().isNotEmpty) keys['Premiumize'] = _premiumizeController.text.trim();
+    if (_debridlinkController.text.trim().isNotEmpty) keys['Debrid-Link'] = _debridlinkController.text.trim();
+    if (_mdblistApiKeyController.text.trim().isNotEmpty) keys['MDBlist'] = _mdblistApiKeyController.text.trim();
+    if (_jackettApiKeyController.text.trim().isNotEmpty) keys['Jackett'] = _jackettApiKeyController.text.trim();
+    if (_prowlarrApiKeyController.text.trim().isNotEmpty) keys['Prowlarr'] = _prowlarrApiKeyController.text.trim();
+
+    if (keys.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No new API keys to save')),
+        );
+      }
+      return;
+    }
+
+    // Save each key that has a value
+    if (_rdController.text.trim().isNotEmpty) await _debrid.saveRDApiKey(_rdController.text.trim());
+    if (_torboxController.text.trim().isNotEmpty) await _debrid.saveTorBoxKey(_torboxController.text.trim());
+    if (_alldebridController.text.trim().isNotEmpty) await _debrid.saveAllDebridKey(_alldebridController.text.trim());
+    if (_premiumizeController.text.trim().isNotEmpty) await _debrid.savePremiumizeKey(_premiumizeController.text.trim());
+    if (_debridlinkController.text.trim().isNotEmpty) await _debrid.saveDebridLinkKey(_debridlinkController.text.trim());
+    if (_mdblistApiKeyController.text.trim().isNotEmpty) await _mdblist.setApiKey(_mdblistApiKeyController.text.trim());
+    if (_jackettApiKeyController.text.trim().isNotEmpty) await _settings.setJackettApiKey(_jackettApiKeyController.text.trim());
+    if (_prowlarrApiKeyController.text.trim().isNotEmpty) await _settings.setProwlarrApiKey(_prowlarrApiKeyController.text.trim());
+
+    // Update login states
+    if (_rdController.text.trim().isNotEmpty) {
+      setState(() {
+        _isRDLoggedIn = true;
+        _rdController.clear();
+      });
+    }
+
+    final saved = keys.keys.join(', ');
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Saved: $saved')),
+      );
+    }
+  }
+
   // Track which sections are expanded
   final Set<String> _expandedSections = {'backup'};
 
@@ -715,7 +762,42 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       children: [_buildUpdateChecker()],
                     ),
 
-                    const SizedBox(height: 40),
+                    const SizedBox(height: 24),
+                    // ── Save All button (TV-friendly) ──
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: FocusableControl(
+                        onTap: _saveAllApiKeys,
+                        scaleOnFocus: 1.0,
+                        glowColor: Colors.greenAccent,
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          decoration: BoxDecoration(
+                            color: Colors.greenAccent.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: Colors.greenAccent.withValues(alpha: 0.3)),
+                          ),
+                          child: const Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.save_rounded, color: Colors.greenAccent, size: 22),
+                              SizedBox(width: 10),
+                              Text(
+                                'SAVE ALL API KEYS',
+                                style: TextStyle(
+                                  color: Colors.greenAccent,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 1.5,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
                     const Center(
                       child: Text(
                         'PlayTorrio Native v1.4.0',
@@ -3158,25 +3240,62 @@ class _SettingsScreenState extends State<SettingsScreen> {
             side: BorderSide(color: AppTheme.current.primaryColor.withValues(alpha: 0.3)),
           ),
           title: Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-          content: TextField(
-            controller: ctrl,
-            obscureText: obscureText,
-            autofocus: true,
-            style: const TextStyle(color: Colors.white),
-            decoration: InputDecoration(
-              hintText: title,
-              hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3)),
-              filled: true,
-              fillColor: Colors.white.withValues(alpha: 0.05),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide.none,
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: ctrl,
+                obscureText: obscureText,
+                autofocus: true,
+                style: const TextStyle(color: Colors.white),
+                decoration: InputDecoration(
+                  hintText: title,
+                  hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3)),
+                  filled: true,
+                  fillColor: Colors.white.withValues(alpha: 0.05),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: AppTheme.primaryColor, width: 2),
+                  ),
+                ),
               ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: AppTheme.primaryColor, width: 2),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  FocusableControl(
+                    onTap: () => Navigator.of(ctx).pop(),
+                    scaleOnFocus: 1.0,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                      child: Text('Cancel', style: TextStyle(color: AppTheme.current.primaryColor, fontSize: 14)),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  FocusableControl(
+                    onTap: () {
+                      onSubmit(ctrl.text);
+                      Navigator.of(ctx).pop();
+                    },
+                    scaleOnFocus: 1.0,
+                    glowColor: Colors.greenAccent,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: Colors.greenAccent.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: Colors.greenAccent.withValues(alpha: 0.4)),
+                      ),
+                      child: const Text('Save', style: TextStyle(color: Colors.greenAccent, fontSize: 14, fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                ],
               ),
-            ),
+            ],
           ),
           actions: [
             TextButton(

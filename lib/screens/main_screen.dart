@@ -50,6 +50,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   int _selectedIndex = 0;
   final FocusNode _tvNavigationFocus = FocusNode(debugLabel: 'tv-navigation');
   bool _isGoogleTv = false;
+  bool _showingDashboard = true;
   int _dashboardIndex = 0;
   Timer? _metricsDebounce;
   Timer? _metricsSafety;
@@ -220,7 +221,20 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   }
 
   void _onItemTapped(int index) {
-    setState(() => _selectedIndex = index);
+    setState(() {
+      _selectedIndex = index;
+      _showingDashboard = false;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _tvNavigationFocus.requestFocus();
+    });
+  }
+
+  void _returnToDashboard() {
+    setState(() => _showingDashboard = true);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _tvNavigationFocus.requestFocus();
+    });
   }
 
   void searchComics(String query) {
@@ -253,7 +267,10 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     
     final bool useNavRail = isDesktop || isLandscape;
 
-    if (_isGoogleTv) return _buildTvDashboard();
+    if (_isGoogleTv) {
+      if (_showingDashboard) return _buildTvDashboard();
+      return _buildTvContent();
+    }
 
     return Focus(
       focusNode: _tvNavigationFocus,
@@ -407,7 +424,12 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   }
 
   void _moveDashboard(int dx, int dy) {
-    final next = _dashboardIndex + dx + dy;
+    const columns = 4;
+    final row = _dashboardIndex ~/ columns;
+    final col = _dashboardIndex % columns;
+    final nextRow = (row + dy).clamp(0, (_visibleIds.length - 1) ~/ columns);
+    final nextCol = (col + dx).clamp(0, columns - 1);
+    final next = nextRow * columns + nextCol;
     if (next >= 0 && next < _visibleIds.length) {
       setState(() => _dashboardIndex = next);
     }
@@ -502,6 +524,56 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTvContent() {
+    final id = _visibleIds[_selectedIndex];
+    return Focus(
+      focusNode: _tvNavigationFocus,
+      autofocus: true,
+      onKeyEvent: (node, event) {
+        if (event is! KeyDownEvent) return KeyEventResult.ignored;
+        if (event.logicalKey == LogicalKeyboardKey.goBack ||
+            event.logicalKey == LogicalKeyboardKey.browserBack) {
+          _returnToDashboard();
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      },
+      child: Scaffold(
+        body: Stack(
+          children: [
+            Container(decoration: AppTheme.effectiveBackground),
+            // Back button overlay
+            Positioned(
+              top: 16,
+              left: 16,
+              child: GestureDetector(
+                onTap: _returnToDashboard,
+                child: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppTheme.current.bgCard.withValues(alpha: 0.85),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.arrow_back_rounded, color: AppTheme.current.primaryColor, size: 20),
+                      const SizedBox(width: 6),
+                      Text(_navMeta[id]!['label'] as String,
+                        style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 14, fontWeight: FontWeight.w600)),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            _allScreens[id]!,
+          ],
         ),
       ),
     );

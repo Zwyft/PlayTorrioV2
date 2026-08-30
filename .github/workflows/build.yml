@@ -70,7 +70,9 @@ jobs:
           --target-platform ${{ matrix.platform }}
           --dart-define=PLAYTORRIO_GOOGLE_TV=true
 
-      - name: Verify APK output and native libraries                                                                                                                                                                                                                        run: |                                                                                                                      █
+      - name: Verify APK output and native libraries
+        shell: bash
+        run: |
                set -euo pipefail                                                                                                         
                APK="build/app/outputs/flutter-apk/app-${{ matrix.flavor }}-release.apk"                                                  
                                                                                                                                          

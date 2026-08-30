@@ -51,13 +51,36 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
+      - name: Cache pub dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env.PUB_CACHE }}
+            .dart_tool
+          key: pub-${{ matrix.flavor }}-${{ hashFiles('pubspec.lock') }}
+          restore-keys: |
+            pub-${{ matrix.flavor }}-
+            pub-
+
+      - name: Cache Gradle build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            build/
+          key: gradle-${{ matrix.flavor }}-${{ hashFiles('android/**/*.gradle*', 'pubspec.lock') }}
+          restore-keys: |
+            gradle-${{ matrix.flavor }}-
+            gradle-
+
       - name: Install Android SDK and NDK
         run: |
           sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0" "ndk;27.0.12077973"
           yes | sdkmanager --licenses >/dev/null || true
 
       - name: Get dependencies
-        run: flutter pub get
+        run: flutter pub get --offline
 
       - name: Analyze Dart source
         run: flutter analyze --no-fatal-infos
@@ -69,6 +92,7 @@ jobs:
           --flavor ${{ matrix.flavor }}
           --target-platform ${{ matrix.platform }}
           --dart-define=PLAYTORRIO_GOOGLE_TV=true
+          --tree-shake-icons
 
       - name: Verify APK output
         run: |
@@ -85,13 +109,15 @@ jobs:
             echo "ERROR: No APK found under build/app/outputs"
             exit 1
           fi
-          echo "Found APK: $APK ($(du -h "$APK" | cut -f1))"
+          echo "Found APK: $APK"
+          ls -lh "$APK"
+          # Copy APK to a clean name for upload
+          cp "$APK" "${{ matrix.artifact }}.apk"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
-          path: |
-            build/app/outputs/flutter-apk/app-${{ matrix.flavor }}-release.apk
-            build/app/outputs/**/*${{ matrix.flavor }}*.apk
+          path: ${{ matrix.artifact }}.apk
           if-no-files-found: error
+          compression-level: 0

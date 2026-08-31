@@ -545,6 +545,8 @@ class _MobilePlayerScreenState extends State<MobilePlayerScreen>
   int _currentFallbackSourceIndex = 0;
   bool _isSwitchingProvider = false;
   bool _isInitPlaybackRunning = false;
+  bool _isDecoderFallbackRunning = false;
+  bool _softwareFallbackUsed = false;
   bool _isFetchingSubs = false;
   String? _selectedExternalSubUrl;
   /// Currently opened language-folder key in the subtitle picker, or null
@@ -1384,9 +1386,17 @@ class _MobilePlayerScreenState extends State<MobilePlayerScreen>
       
       debugPrint('🔴 [MobilePlayer] $err');
       
-      if (err.contains('Failed') || err.contains('No such file')) {
+      if (err.contains('Failed') || err.contains('No such file') ||
+          lower.contains('decoder') || lower.contains('video output') ||
+          lower.contains('could not initialize')) {
+        // Retry the active URL once with software decoding before moving on.
+        if (_isGoogleTv && !_softwareFallbackUsed &&
+            !_isDecoderFallbackRunning && _currentUrl != null) {
+          _retryWithSoftwareDecoding();
+          return;
+        }
         // Don't retry if we've already given up or are currently retrying
-        if (_hasError || _isInitPlaybackRunning) {
+        if (_hasError || _isInitPlaybackRunning || _isDecoderFallbackRunning) {
           if (_isInitPlaybackRunning) {
             debugPrint('[Player] Ignoring stale error — _initPlayback already running');
           }
@@ -1591,6 +1601,42 @@ class _MobilePlayerScreenState extends State<MobilePlayerScreen>
   // ─────────────────────────────────────────────────────────────────────────
   //  HW DECODE CYCLE
   // ─────────────────────────────────────────────────────────────────────────
+
+  Future<void> _retryWithSoftwareDecoding() async {
+    if (_disposed || _isDecoderFallbackRunning || _currentUrl == null) return;
+    _isDecoderFallbackRunning = true;
+    _softwareFallbackUsed = true;
+    debugPrint('[Player] Retrying active source with software decoding: ${_describeMediaUrl(_currentUrl!)}');
+
+    try {
+      setState(() => _hwDecMode = _HwDecMode.software);
+      await _configureMpvProperties();
+      final url = _currentUrl!;
+      final headers = _currentSources != null &&
+              _currentFallbackSourceIndex < _currentSources!.length
+          ? _currentSources![_currentFallbackSourceIndex].headers ?? widget.headers
+          : widget.headers;
+      await _player.open(Media(url, httpHeaders: headers));
+      _hasError = false;
+      _errorMessage = '';
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Hardware decoding failed; switched to software decoding.'),
+          duration: Duration(seconds: 3),
+        ));
+      }
+    } catch (e) {
+      debugPrint('[Player] Software decoder retry failed: $e');
+      if (mounted) {
+        setState(() {
+          _hasError = true;
+          _errorMessage = 'This source could not be decoded on this TV.';
+        });
+      }
+    } finally {
+      _isDecoderFallbackRunning = false;
+    }
+  }
 
   void _cycleHwDec() {
     final next = _hwDecMode.next;

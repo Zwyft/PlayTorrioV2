@@ -544,11 +544,18 @@ class DebridApi {
   // Auth is `apikey` as a form field, NOT a Bearer header.
 
   Future<void> savePremiumizeKey(String key) async {
-    await _safeWrite('premiumize_api_key', key.trim());
+    final trimmed = key.trim();
+    if (trimmed.isEmpty) {
+      await _safeDelete('premiumize_api_key');
+      return;
+    }
+    await _safeWrite('premiumize_api_key', trimmed);
   }
 
   Future<String?> getPremiumizeKey() async {
-    return await _safeRead('premiumize_api_key');
+    final key = await _safeRead('premiumize_api_key');
+    final trimmed = key?.trim();
+    return trimmed == null || trimmed.isEmpty ? null : trimmed;
   }
 
   /// Recursively walks a Premiumize folder/list response, collecting every
@@ -592,8 +599,8 @@ class DebridApi {
     int? episode,
   }) async {
     final apiKey = await getPremiumizeKey();
-    if (apiKey == null || apiKey.isEmpty) {
-      throw Exception('Premiumize API key not set');
+    if (apiKey == null) {
+      throw Exception('Premiumize API key is missing. Enter and save it in Settings.');
     }
 
     List<Map<String, dynamic>> files = [];
@@ -621,9 +628,20 @@ class DebridApi {
           });
         }
       } else {
-        debugPrint('[Premiumize] directdl miss: ${dlBody['message']}');
+        final code = dlBody['message']?.toString() ?? 'unknown error';
+        debugPrint('[Premiumize] directdl miss: $code');
+        // Authentication failures must not fall through to transfer/create;
+        // that endpoint returns the misleading “not logged in” message too.
+        final lowerMessage = code.toLowerCase();
+        if (lowerMessage.contains('login') ||
+            lowerMessage.contains('auth') ||
+            lowerMessage.contains('apikey') ||
+            lowerMessage.contains('api key')) {
+          throw Exception('Premiumize authentication failed. Check the saved API key.');
+        }
       }
     } catch (e) {
+      if (e.toString().contains('authentication failed')) rethrow;
       debugPrint('[Premiumize] directdl error: $e');
     }
 
@@ -635,7 +653,15 @@ class DebridApi {
       );
       final createBody = json.decode(createRes.body) as Map<String, dynamic>;
       if (createBody['status'] != 'success') {
-        throw Exception('Premiumize create: ${createBody['message']}');
+        final message = createBody['message']?.toString() ?? 'unknown error';
+        final lowerMessage = message.toLowerCase();
+        if (lowerMessage.contains('login') ||
+            lowerMessage.contains('auth') ||
+            lowerMessage.contains('apikey') ||
+            lowerMessage.contains('api key')) {
+          throw Exception('Premiumize authentication failed. Check the saved API key.');
+        }
+        throw Exception('Premiumize transfer could not be created: $message');
       }
       final transferId = createBody['id'] as String?;
       if (transferId == null) {

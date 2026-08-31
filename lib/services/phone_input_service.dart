@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import '../api/debrid_api.dart';
 import '../api/mdblist_service.dart';
 import '../api/settings_service.dart';
+import 'external_player_service.dart';
 
 /// Lightweight HTTP server that lets the user enter API keys from their phone.
 /// Start the server, show the URL on the TV screen, and the phone connects
@@ -24,17 +25,46 @@ class PhoneInputService {
   Stream<Map<String, String>> get onKeySaved => _onKeySaved.stream;
 
   /// Saves the general playback/debrid settings submitted by the phone UI.
+  static const Set<String> _debridServices = {
+    'None', 'Real-Debrid', 'TorBox', 'AllDebrid', 'Premiumize', 'Debrid-Link'
+  };
+
+  Future<Map<String, dynamic>> getSettingsStatus() async {
+    final settings = SettingsService();
+    final debrid = DebridApi();
+    final service = await settings.getDebridService();
+    final player = await settings.getExternalPlayer();
+    final key = switch (service) {
+      'Real-Debrid' => await debrid.getRDAccessToken(),
+      'TorBox' => await debrid.getTorBoxKey(),
+      'AllDebrid' => await debrid.getAllDebridKey(),
+      'Premiumize' => await debrid.getPremiumizeKey(),
+      'Debrid-Link' => await debrid.getDebridLinkKey(),
+      _ => null,
+    };
+    return {
+      'use_debrid': await settings.useDebridForStreams(),
+      'debrid_service': service,
+      'external_player': player,
+      'debrid_key_configured': key?.trim().isNotEmpty == true,
+    };
+  }
+
   Future<void> saveSettings(Map<String, dynamic> data) async {
     final settings = SettingsService();
     final useDebrid = data['use_debrid'];
     if (useDebrid is bool) await settings.setUseDebridForStreams(useDebrid);
     final service = data['debrid_service'];
-    if (service is String && service.isNotEmpty) {
+    if (service is String && _debridServices.contains(service)) {
       await settings.setDebridService(service);
+    } else if (service != null) {
+      throw FormatException('Invalid debrid service');
     }
     final player = data['external_player'];
-    if (player is String && player.isNotEmpty) {
+    if (player is String && ExternalPlayerService.playerNames.contains(player)) {
       await settings.setExternalPlayer(player);
+    } else if (player != null) {
+      throw FormatException('Invalid external player');
     }
   }
 
@@ -97,6 +127,8 @@ class PhoneInputService {
       await _serveForm(request);
     } else if (request.method == 'POST' && request.uri.path == '/save') {
       await _handleSave(request);
+    } else if (request.method == 'GET' && request.uri.path == '/settings') {
+      await _handleSettingsStatus(request);
     } else if (request.method == 'POST' && request.uri.path == '/settings') {
       await _handleSettings(request);
     } else {
@@ -105,13 +137,23 @@ class PhoneInputService {
     }
   }
 
+  Future<void> _handleSettingsStatus(HttpRequest request) async {
+    request.response.headers.contentType = ContentType.json;
+    request.response.write(json.encode(await getSettingsStatus()));
+    await request.response.close();
+  }
+
   Future<void> _handleSettings(HttpRequest request) async {
     try {
       final body = await utf8.decoder.bind(request).join();
-      final data = json.decode(body) as Map<String, dynamic>;
-      await saveSettings(data);
+      final decoded = json.decode(body);
+      if (decoded is! Map) throw const FormatException('JSON object required');
+      await saveSettings(decoded.cast<String, dynamic>());
       request.response.headers.contentType = ContentType.json;
-      request.response.write(json.encode({'status': 'ok'}));
+      request.response.write(json.encode({
+        'status': 'ok',
+        'settings': await getSettingsStatus(),
+      }));
     } catch (e) {
       request.response.statusCode = 400;
       request.response.write(json.encode({'error': e.toString()}));
@@ -128,7 +170,9 @@ class PhoneInputService {
   Future<void> _handleSave(HttpRequest request) async {
     try {
       final body = await utf8.decoder.bind(request).join();
-      final data = json.decode(body) as Map<String, dynamic>;
+      final decoded = json.decode(body);
+      if (decoded is! Map) throw const FormatException('JSON object required');
+      final data = decoded.cast<String, dynamic>();
       final service = data['service'] as String? ?? '';
       final apiKey = data['api_key'] as String? ?? '';
 
@@ -173,10 +217,16 @@ class PhoneInputService {
           return;
       }
 
-      _onKeySaved.add({'service': service, 'key': apiKey});
+      // Do not publish the secret through the event stream. Consumers only
+      // need to know which service changed; the key remains local to storage.
+      _onKeySaved.add({'service': service, 'key': ''});
 
       request.response.headers.contentType = ContentType.json;
-      request.response.write(json.encode({'status': 'ok', 'service': service}));
+      request.response.write(json.encode({
+        'status': 'ok',
+        'service': service,
+        'settings': await getSettingsStatus(),
+      }));
       await request.response.close();
 
       debugPrint('[PhoneInput] Saved key for $service');
@@ -254,6 +304,7 @@ class PhoneInputService {
       margin-top: 8px;
     }
     button:active { opacity: 0.8; }
+    button.secondary { background: rgba(255,255,255,0.12); margin-top: 10px; }
     .success {
       display: none;
       text-align: center;
@@ -267,7 +318,7 @@ class PhoneInputService {
   <div class="card">
     <div id="form">
       <h1>🔑 PlayTorrio</h1>
-      <p>Enter your API key on your phone and it will be saved on your TV.</p>
+      <p>Update your TV settings from your phone. API keys are saved on the TV and never displayed back.</p>
       <label>Service</label>
       <select id="service">
         <option value="Premiumize">Premiumize</option>
@@ -303,6 +354,7 @@ class PhoneInputService {
         <option value="mpv-android">mpv-android</option>
       </select>
       <button onclick="save()">Save All Settings</button>
+      <button class="secondary" onclick="loadStatus()">Refresh TV Status</button>
       <div class="error" id="error"></div>
     </div>
     <div class="success" id="success">
@@ -311,6 +363,22 @@ class PhoneInputService {
     </div>
   </div>
   <script>
+    async function loadStatus() {
+      try {
+        const res = await fetch('/settings');
+        const data = await res.json();
+        document.getElementById('useDebrid').value = data.use_debrid ? 'true' : 'false';
+        document.getElementById('debridService').value = data.debrid_service || 'None';
+        document.getElementById('externalPlayer').value = data.external_player || 'Built-in Player';
+        document.getElementById('error').style.display = 'block';
+        document.getElementById('error').style.color = '#00E676';
+        document.getElementById('error').textContent = data.debrid_key_configured ? 'TV status loaded: key configured.' : 'TV status loaded: no selected debrid key.';
+      } catch (e) {
+        document.getElementById('error').style.display = 'block';
+        document.getElementById('error').textContent = 'Could not load TV status';
+      }
+    }
+
     async function save() {
       const service = document.getElementById('service').value;
       const api_key = document.getElementById('apikey').value.trim();
@@ -327,7 +395,7 @@ class PhoneInputService {
         });
         const data = await res.json();
         if (data.status === 'ok') {
-          await fetch('/settings', {
+          const settingsRes = await fetch('/settings', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
@@ -336,6 +404,7 @@ class PhoneInputService {
               external_player: document.getElementById('externalPlayer').value
             })
           });
+          if (!settingsRes.ok) throw new Error('Settings update failed');
           document.getElementById('form').style.display = 'none';
           document.getElementById('success').style.display = 'block';
         } else {

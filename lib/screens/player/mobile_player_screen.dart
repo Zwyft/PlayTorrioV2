@@ -1450,17 +1450,19 @@ class _MobilePlayerScreenState extends State<MobilePlayerScreen>
     // whitelisted to formats each platform reliably supports.
     await safeSet('hwdec', _hwDecMode.mpvValue);
 
-    if (_isGoogleTv) {
-      // NOTE: do NOT force vo=mediacodec_embed here. media_kit renders into
-      // a Flutter texture, not a native window, and mediacodec_embed asserts
-      // on WinID != 0 — SIGABRT crash (vo_mediacodec_embed.c:40). The default
-      // media_kit video output + hwdec=auto-copy is the reliable path on TV.
-      await safeSet('vo', 'gpu');
-    }
+    // Do not set `vo` or `gpu-context` here. Android output backends require
+    // a native window ID, but media_kit_video supplies a Flutter texture.
+    // Setting either backend causes libmpv's android_common assertion
+    // (WinID != 0) and aborts the ARMv7 TV process during stream startup.
 
     // Zero-copy direct rendering — decoder writes straight to GPU texture.
     // Big win on mobile for battery + throughput on H.265/4K content.
-    await safeSet('vd-lavc-dr', 'yes');
+    // On Google TV, direct rendering is disabled: the crash tombstone showed
+    // this path failing on the TV GPU (IMGSRV buffer-lock errors); copy mode
+    // is the safe default there.
+    if (!_isGoogleTv) {
+      await safeSet('vd-lavc-dr', 'yes');
+    }
 
     // Auto thread count (0 = let mpv decide). On mobile 4–8 cores typical.
     await safeSet('vd-lavc-threads', '0');

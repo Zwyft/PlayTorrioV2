@@ -23,6 +23,21 @@ class PhoneInputService {
       StreamController.broadcast();
   Stream<Map<String, String>> get onKeySaved => _onKeySaved.stream;
 
+  /// Saves the general playback/debrid settings submitted by the phone UI.
+  Future<void> saveSettings(Map<String, dynamic> data) async {
+    final settings = SettingsService();
+    final useDebrid = data['use_debrid'];
+    if (useDebrid is bool) await settings.setUseDebridForStreams(useDebrid);
+    final service = data['debrid_service'];
+    if (service is String && service.isNotEmpty) {
+      await settings.setDebridService(service);
+    }
+    final player = data['external_player'];
+    if (player is String && player.isNotEmpty) {
+      await settings.setExternalPlayer(player);
+    }
+  }
+
   /// Start the server on the given port (default 8080).
   Future<String?> start({int port = 8080}) async {
     if (_server != null) return await _getUrl();
@@ -82,10 +97,26 @@ class PhoneInputService {
       await _serveForm(request);
     } else if (request.method == 'POST' && request.uri.path == '/save') {
       await _handleSave(request);
+    } else if (request.method == 'POST' && request.uri.path == '/settings') {
+      await _handleSettings(request);
     } else {
       request.response.statusCode = 404;
       await request.response.close();
     }
+  }
+
+  Future<void> _handleSettings(HttpRequest request) async {
+    try {
+      final body = await utf8.decoder.bind(request).join();
+      final data = json.decode(body) as Map<String, dynamic>;
+      await saveSettings(data);
+      request.response.headers.contentType = ContentType.json;
+      request.response.write(json.encode({'status': 'ok'}));
+    } catch (e) {
+      request.response.statusCode = 400;
+      request.response.write(json.encode({'error': e.toString()}));
+    }
+    await request.response.close();
   }
 
   Future<void> _serveForm(HttpRequest request) async {
@@ -250,7 +281,28 @@ class PhoneInputService {
       </select>
       <label>API Key</label>
       <input type="text" id="apikey" placeholder="Paste your API key here" autocomplete="off" />
-      <button onclick="save()">Save to TV</button>
+      <label>Use Debrid for Streams</label>
+      <select id="useDebrid">
+        <option value="true">On</option>
+        <option value="false">Off</option>
+      </select>
+      <label>Debrid Service</label>
+      <select id="debridService">
+        <option value="None">None</option>
+        <option value="Premiumize">Premiumize</option>
+        <option value="Real-Debrid">Real-Debrid</option>
+        <option value="TorBox">TorBox</option>
+        <option value="AllDebrid">AllDebrid</option>
+        <option value="Debrid-Link">Debrid-Link</option>
+      </select>
+      <label>Player</label>
+      <select id="externalPlayer">
+        <option value="Built-in Player">Built-in Player</option>
+        <option value="System Default">System Default</option>
+        <option value="VLC">VLC</option>
+        <option value="mpv-android">mpv-android</option>
+      </select>
+      <button onclick="save()">Save All Settings</button>
       <div class="error" id="error"></div>
     </div>
     <div class="success" id="success">
@@ -275,6 +327,15 @@ class PhoneInputService {
         });
         const data = await res.json();
         if (data.status === 'ok') {
+          await fetch('/settings', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+              use_debrid: document.getElementById('useDebrid').value === 'true',
+              debrid_service: document.getElementById('debridService').value,
+              external_player: document.getElementById('externalPlayer').value
+            })
+          });
           document.getElementById('form').style.display = 'none';
           document.getElementById('success').style.display = 'block';
         } else {

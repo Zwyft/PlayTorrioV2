@@ -2295,8 +2295,22 @@ class _ContinueWatchingSectionState extends State<_ContinueWatchingSection> {
                fileIndex = 0;
                debugPrint('[Resume] Picked: ${files.first.filename}');
              }
+          } else if (debridService == 'AllDebrid' ||
+                     debridService == 'Premiumize' ||
+                     debridService == 'Debrid-Link') {
+             final files = await DebridApi().resolveByService(
+               debridService,
+               magnetLink,
+               season: season,
+               episode: episode,
+             );
+             if (files.isNotEmpty) {
+               streamUrl = files.first.downloadUrl;
+               fileIndex = 0;
+               debugPrint('[Resume] Picked: ${files.first.filename}');
+             }
           } else {
-             throw Exception("No Debrid service configured");
+             throw Exception("No Debrid service configured: $debridService");
           }
         } else {
           // Local Torrent Engine

@@ -152,6 +152,7 @@ class _GlassIconButton extends StatefulWidget {
   final bool active;
 
   const _GlassIconButton({
+    super.key,
     required this.icon,
     required this.onPressed,
     this.size = 44,
@@ -3522,24 +3523,10 @@ class _MobilePlayerScreenState extends State<MobilePlayerScreen>
       return KeyEventResult.handled;
     }
 
-    // When controls are visible, only intercept OK (play-pause) and Back.
-    // Let arrow keys pass through so FocusableControl buttons in the
-    // toolbar (back, audio, subtitles, PiP, etc.) can be navigated.
-    if (_showControls) {
-      if (key == LogicalKeyboardKey.enter ||
-          key == LogicalKeyboardKey.select ||
-          key == LogicalKeyboardKey.gameButtonA) {
-        if (_isPlayingNotifier.value) {
-          _player.pause();
-        } else {
-          _player.play();
-        }
-        _startHideTimer();
-        return KeyEventResult.handled;
-      }
-      // Let arrow keys pass through to control buttons
-      return KeyEventResult.ignored;
-    }
+    // When controls are visible, do not consume OK or arrows here. The
+    // focused control must receive OK, while Flutter's focus traversal gets
+    // the D-pad arrows. The root handler only owns global Back handling.
+    if (_showControls) return KeyEventResult.ignored;
 
     // Controls hidden — apply shortcut keys
     // OK / Enter / Select → play/pause + show controls
@@ -3723,7 +3710,10 @@ class _MobilePlayerScreenState extends State<MobilePlayerScreen>
                 duration: const Duration(milliseconds: 200),
                 child: IgnorePointer(
                   ignoring: !(_showControls && !_isLocked) || _isPipMode,
-                  child: _buildControlsOverlay(),
+                  child: FocusTraversalGroup(
+                    policy: ReadingOrderTraversalPolicy(),
+                    child: _buildControlsOverlay(),
+                  ),
                 ),
               ),
 

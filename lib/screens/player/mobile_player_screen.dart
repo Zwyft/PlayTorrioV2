@@ -1451,10 +1451,11 @@ class _MobilePlayerScreenState extends State<MobilePlayerScreen>
     await safeSet('hwdec', _hwDecMode.mpvValue);
 
     if (_isGoogleTv) {
-      // Android TV: force mediacodec_embed video output for reliable
-      // surface rendering. auto-safe often causes black screen on TV boxes.
-      await safeSet('vo', 'mediacodec_embed');
-      await safeSet('gpu-context', 'androidmediacodec');
+      // NOTE: do NOT force vo=mediacodec_embed here. media_kit renders into
+      // a Flutter texture, not a native window, and mediacodec_embed asserts
+      // on WinID != 0 — SIGABRT crash (vo_mediacodec_embed.c:40). The default
+      // media_kit video output + hwdec=auto-copy is the reliable path on TV.
+      await safeSet('vo', 'gpu');
     }
 
     // Zero-copy direct rendering — decoder writes straight to GPU texture.

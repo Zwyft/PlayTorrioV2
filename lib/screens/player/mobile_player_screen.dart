@@ -152,7 +152,6 @@ class _GlassIconButton extends StatefulWidget {
   final bool active;
 
   const _GlassIconButton({
-    super.key,
     required this.icon,
     required this.onPressed,
     this.size = 44,

@@ -215,6 +215,7 @@ class _GlassIconButtonState extends State<_GlassIconButton> {
           ),
         ),
       ),
+      ),
     );
   }
 }
@@ -277,6 +278,7 @@ class _GlassPillButtonState extends State<_GlassPillButton> {
             ),
           ),
         ),
+      ),
       ),
     );
   }

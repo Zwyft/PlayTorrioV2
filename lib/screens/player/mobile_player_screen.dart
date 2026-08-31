@@ -147,6 +147,7 @@ class _GlassIconButton extends StatefulWidget {
   final IconData icon;
   final VoidCallback onPressed;
   final double size;
+  final bool tvFocusable;
   final double iconSize;
   final Color? iconColor;
   final bool active;
@@ -156,6 +157,7 @@ class _GlassIconButton extends StatefulWidget {
     required this.onPressed,
     this.size = 44,
     this.iconSize = 20,
+    this.tvFocusable = false,
     this.iconColor,
     this.active = false,
   });
@@ -175,9 +177,21 @@ class _GlassIconButtonState extends State<_GlassIconButton> {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: widget.onPressed,
-      onTapDown: (_) => setState(() => _pressed = true),
+    return Focus(
+      canRequestFocus: widget.tvFocusable,
+      onKeyEvent: (node, event) {
+        if (event is KeyDownEvent &&
+            (event.logicalKey == LogicalKeyboardKey.enter ||
+                event.logicalKey == LogicalKeyboardKey.select ||
+                event.logicalKey == LogicalKeyboardKey.gameButtonA)) {
+          widget.onPressed();
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      },
+      child: GestureDetector(
+        onTap: widget.onPressed,
+        onTapDown: (_) => setState(() => _pressed = true),
       onTapUp: (_) => setState(() => _pressed = false),
       onTapCancel: () => setState(() => _pressed = false),
       child: AnimatedScale(
@@ -209,12 +223,14 @@ class _GlassIconButtonState extends State<_GlassIconButton> {
 class _GlassPillButton extends StatefulWidget {
   final String text;
   final VoidCallback onTap;
+  final bool tvFocusable;
   final Color? accent;
 
   const _GlassPillButton({
     required this.text,
     required this.onTap,
     this.accent,
+    this.tvFocusable = false,
   });
 
   @override
@@ -226,9 +242,21 @@ class _GlassPillButtonState extends State<_GlassPillButton> {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: widget.onTap,
-      onTapDown: (_) => setState(() => _pressed = true),
+    return Focus(
+      canRequestFocus: widget.tvFocusable,
+      onKeyEvent: (node, event) {
+        if (event is KeyDownEvent &&
+            (event.logicalKey == LogicalKeyboardKey.enter ||
+                event.logicalKey == LogicalKeyboardKey.select ||
+                event.logicalKey == LogicalKeyboardKey.gameButtonA)) {
+          widget.onTap();
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      },
+      child: GestureDetector(
+        onTap: widget.onTap,
+        onTapDown: (_) => setState(() => _pressed = true),
       onTapUp: (_) => setState(() => _pressed = false),
       onTapCancel: () => setState(() => _pressed = false),
       child: AnimatedScale(
@@ -3937,6 +3965,7 @@ class _MobilePlayerScreenState extends State<MobilePlayerScreen>
               _GlassIconButton(
                 icon: Icons.arrow_back_ios_new_rounded,
                 onPressed: _exitPlayer,
+                tvFocusable: _isGoogleTv,
                 size: btnSize, iconSize: iconSz,
               ),
               SizedBox(width: isPortrait ? 6 : 10),
@@ -3964,6 +3993,7 @@ class _MobilePlayerScreenState extends State<MobilePlayerScreen>
                   text: _hwDecMode.label,
                   onTap: _cycleHwDec,
                   accent: _hwDecMode.accent,
+                  tvFocusable: _isGoogleTv,
                 ),
               if (!isPortrait) SizedBox(width: gap),
               _GlassIconButton(

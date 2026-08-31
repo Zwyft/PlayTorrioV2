@@ -983,6 +983,7 @@ class _MobilePlayerScreenState extends State<MobilePlayerScreen>
             }
           }
 
+          debugPrint('[Player] Opening ${_describeMediaUrl(openUrl)} provider=${_currentProvider ?? 'unknown'} headers=${srcHeaders?.isNotEmpty == true}');
           await _player.open(Media(openUrl, httpHeaders: srcHeaders));
           // Update mpv referrer for this specific source
           if (source.headers != null && _player.platform is NativePlayer) {
@@ -1012,6 +1013,7 @@ class _MobilePlayerScreenState extends State<MobilePlayerScreen>
         try {
           _subscribeToStreams();
           await _configureMpvProperties();
+          debugPrint('[Player] Opening ${_describeMediaUrl(widget.mediaPath)} provider=${_currentProvider ?? 'unknown'} headers=${widget.headers?.isNotEmpty == true}');
           await _player.open(Media(widget.mediaPath, httpHeaders: widget.headers));
           _player.setVolume(_volume);
           _detectHlsQualities(widget.mediaPath, widget.headers);
@@ -1435,6 +1437,7 @@ class _MobilePlayerScreenState extends State<MobilePlayerScreen>
 
   Future<void> _configureMpvProperties() async {
     if (_player.platform is! NativePlayer) return;
+    debugPrint('[Player] Configuring TV-safe mpv properties: tv=$_isGoogleTv mode=${_hwDecMode.label}');
     final mpv = _player.platform as NativePlayer;
 
     Future<void> safeSet(String key, String val) async {
@@ -1544,6 +1547,16 @@ class _MobilePlayerScreenState extends State<MobilePlayerScreen>
     if (widget.startPosition != null && !_hasInitialSeek) {
       final secs = widget.startPosition!.inMilliseconds / 1000.0;
       await mpv.setProperty('start', '+${secs.toStringAsFixed(3)}');
+    }
+  }
+
+  String _describeMediaUrl(String url) {
+    try {
+      final uri = Uri.parse(url);
+      final path = uri.path.length > 80 ? '${uri.path.substring(0, 80)}…' : uri.path;
+      return '${uri.scheme}://host$path';
+    } catch (_) {
+      return '<invalid-url>';
     }
   }
 

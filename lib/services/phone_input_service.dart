@@ -173,10 +173,10 @@ class PhoneInputService {
       final decoded = json.decode(body);
       if (decoded is! Map) throw const FormatException('JSON object required');
       final data = decoded.cast<String, dynamic>();
-      final service = data['service'] as String? ?? '';
+        final service = data['service'] as String? ?? '';
       final apiKey = data['api_key'] as String? ?? '';
 
-      if (service.isEmpty || apiKey.isEmpty) {
+      if (!_debridServices.contains(service) || service == 'None' || apiKey.trim().isEmpty) {
         request.response.statusCode = 400;
         request.response.write(json.encode({'error': 'Missing service or api_key'}));
         await request.response.close();

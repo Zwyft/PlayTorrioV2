@@ -244,12 +244,17 @@ class SettingsService {
 
   Future<String> getDebridService() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_debridServiceKey) ?? 'None';
+    final service = prefs.getString(_debridServiceKey)?.trim();
+    return service == null || service.isEmpty ? 'None' : service;
   }
 
   Future<void> setDebridService(String service) async {
+    final normalized = service.trim();
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_debridServiceKey, service);
+    await prefs.setString(
+      _debridServiceKey,
+      normalized.isEmpty ? 'None' : normalized,
+    );
   }
 
   // ═══════════════════════════════════════════════════════════════════════════

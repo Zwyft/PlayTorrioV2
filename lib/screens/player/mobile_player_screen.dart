@@ -322,8 +322,20 @@ class _GlassPlayPauseState extends State<_GlassPlayPause> {
         ),
       );
     }
-    return GestureDetector(
-      onTap: widget.onPressed,
+    return Focus(
+      canRequestFocus: true,
+      onKeyEvent: (node, event) {
+        if (event is KeyDownEvent &&
+            (event.logicalKey == LogicalKeyboardKey.enter ||
+                event.logicalKey == LogicalKeyboardKey.select ||
+                event.logicalKey == LogicalKeyboardKey.gameButtonA)) {
+          widget.onPressed();
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      },
+      child: GestureDetector(
+        onTap: widget.onPressed,
       onTapDown: (_) => setState(() => _pressed = true),
       onTapUp: (_) => setState(() => _pressed = false),
       onTapCancel: () => setState(() => _pressed = false),
@@ -344,6 +356,7 @@ class _GlassPlayPauseState extends State<_GlassPlayPause> {
             ),
           ),
         ),
+      ),
       ),
     );
   }
@@ -473,6 +486,10 @@ class _MobilePlayerScreenState extends State<MobilePlayerScreen>
   bool _historySaved = false;
   bool _hasError = false;
   String _errorMessage = '';
+  Timer? _videoReadyTimer;
+  bool _hasVideoTrack = false;
+  bool _isWaitingForFirstFrame = false;
+  int _playbackGeneration = 0;
 
   // ── UI State ─────────────────────────────────────────────────────────────
   bool _showControls = true;
@@ -760,6 +777,7 @@ class _MobilePlayerScreenState extends State<MobilePlayerScreen>
     _disposed = true;
     WidgetsBinding.instance.removeObserver(this);
     _hideTimer?.cancel();
+    _videoReadyTimer?.cancel();
     _indicatorHideTimer?.cancel();
     _rippleController.dispose();
 
@@ -963,6 +981,10 @@ class _MobilePlayerScreenState extends State<MobilePlayerScreen>
     _isInitPlaybackRunning = true;
     
     try {
+      final playbackGeneration = ++_playbackGeneration;
+    _videoReadyTimer?.cancel();
+    _hasVideoTrack = false;
+    _isWaitingForFirstFrame = false;
     setState(() {
       _hasError = false;
       _errorMessage = '';
@@ -1017,6 +1039,7 @@ class _MobilePlayerScreenState extends State<MobilePlayerScreen>
 
           debugPrint('[Player] Opening ${_describeMediaUrl(openUrl)} provider=${_currentProvider ?? 'unknown'} headers=${srcHeaders?.isNotEmpty == true}');
           await _player.open(Media(openUrl, httpHeaders: srcHeaders));
+          _watchForFirstFrame(playbackGeneration, openUrl);
           // Update mpv referrer for this specific source
           if (source.headers != null && _player.platform is NativePlayer) {
             final ref = source.headers!['Referer'] ?? source.headers!['referer'];
@@ -1024,9 +1047,11 @@ class _MobilePlayerScreenState extends State<MobilePlayerScreen>
           }
           _player.setVolume(_volume);
           _detectHlsQualities(openUrl, srcHeaders);
+          if (!mounted || playbackGeneration != _playbackGeneration) return;
           setState(() {
             _currentUrl = openUrl;
           });
+
           return; // Opened successfully (might still error out during buffering)
         } catch (e) {
           debugPrint('[Player] Source $i catch error: $e');
@@ -1047,6 +1072,8 @@ class _MobilePlayerScreenState extends State<MobilePlayerScreen>
           await _configureMpvProperties();
           debugPrint('[Player] Opening ${_describeMediaUrl(widget.mediaPath)} provider=${_currentProvider ?? 'unknown'} headers=${widget.headers?.isNotEmpty == true}');
           await _player.open(Media(widget.mediaPath, httpHeaders: widget.headers));
+          _watchForFirstFrame(playbackGeneration, widget.mediaPath);
+          if (!mounted || playbackGeneration != _playbackGeneration) return;
           _player.setVolume(_volume);
           _detectHlsQualities(widget.mediaPath, widget.headers);
           return;
@@ -1237,6 +1264,40 @@ class _MobilePlayerScreenState extends State<MobilePlayerScreen>
     return false;
   }
 
+  void _watchForFirstFrame(int generation, String url) {
+    _videoReadyTimer?.cancel();
+    _isWaitingForFirstFrame = true;
+    _videoReadyTimer = Timer(const Duration(seconds: 12), () {
+      if (_disposed || !mounted || generation != _playbackGeneration) return;
+      if (!_isWaitingForFirstFrame) return;
+      final playing = _isPlayingNotifier.value;
+      debugPrint('[Player] No first frame after 12s: url=${_describeMediaUrl(url)} playing=$playing videoTrack=$_hasVideoTrack mode=${_hwDecMode.label}');
+      if (!_softwareFallbackUsed && !_isDecoderFallbackRunning && _isGoogleTv) {
+        _retryWithSoftwareDecoding();
+        return;
+      }
+      setState(() {
+        _hasError = true;
+        _errorMessage = _hasVideoTrack
+            ? 'The stream has video, but the TV did not render a frame.'
+            : 'The stream opened but produced no video on this TV.';
+      });
+    });
+    unawaited(_awaitFirstFrame(generation));
+  }
+
+  Future<void> _awaitFirstFrame(int generation) async {
+    try {
+      await _controller.waitUntilFirstFrameRendered;
+      if (_disposed || !mounted || generation != _playbackGeneration) return;
+      _videoReadyTimer?.cancel();
+      _isWaitingForFirstFrame = false;
+      debugPrint('[Player] First video frame rendered mode=${_hwDecMode.label}');
+    } catch (e) {
+      debugPrint('[Player] First-frame wait failed: $e');
+    }
+  }
+
   void _subscribeToStreams() {
     // Cancel any existing subscriptions to prevent duplicate listeners
     _positionSub?.cancel();
@@ -1308,6 +1369,7 @@ class _MobilePlayerScreenState extends State<MobilePlayerScreen>
 
     _playingSub = _player.stream.playing.listen((playing) {
       if (_disposed) return;
+      debugPrint('[Player] Playing state: $playing videoTrack=$_hasVideoTrack mode=${_hwDecMode.label}');
       _isPlayingNotifier.value = playing;
       if (playing) {
         _startHideTimer();
@@ -1355,12 +1417,13 @@ class _MobilePlayerScreenState extends State<MobilePlayerScreen>
 
     _bufferingSub = _player.stream.buffering.listen((buffering) {
       if (_disposed) return;
+      debugPrint('[Player] Buffering state: $buffering');
       _isBufferingNotifier.value = buffering;
     });
 
     // Surface only fatal errors — transient network blips are handled by mpv
     _errorSub = _player.stream.error.listen((err) {
-      if (_disposed || err.isEmpty) return;
+      if (_disposed || err.trim().isEmpty) return;
       
       // Ignore non-fatal audio errors (video continues playing)
       if (err.contains('Error decoding audio') ||
@@ -1371,7 +1434,7 @@ class _MobilePlayerScreenState extends State<MobilePlayerScreen>
       // Ignore subtitle-fetch errors (HTTP 502/404 from sub providers,
       // bad SRT, codec issues, etc.). These should NOT kill video
       // playback or rotate the video fallback chain.
-      final lower = err.toLowerCase();
+      final lower = err.toLowerCase().trim();
       final isSubError = lower.contains('subtitle') ||
           lower.contains('sub-add') ||
           lower.contains('external file') ||
@@ -1417,7 +1480,13 @@ class _MobilePlayerScreenState extends State<MobilePlayerScreen>
     });
 
     _tracksSub = _player.stream.tracks.listen((tracks) {
-      if (_disposed || _autoTracksAppliedForSource) return;
+      if (_disposed) return;
+      final video = tracks.video;
+      if (video.isNotEmpty) {
+        _hasVideoTrack = true;
+        debugPrint('[Player] Video track: ${video.map((t) => '${t.id}:${t.codec ?? 'unknown'}').join(', ')}');
+      }
+      if (_autoTracksAppliedForSource) return;
       // Only run once we have at least one real audio track to choose from.
       final hasAudio = tracks.audio.any((t) => t.id != 'no' && t.id != 'auto');
       if (!hasAudio) return;
@@ -1608,17 +1677,26 @@ class _MobilePlayerScreenState extends State<MobilePlayerScreen>
     if (_disposed || _isDecoderFallbackRunning || _currentUrl == null) return;
     _isDecoderFallbackRunning = true;
     _softwareFallbackUsed = true;
-    debugPrint('[Player] Retrying active source with software decoding: ${_describeMediaUrl(_currentUrl!)}');
+    final retryPosition = _positionNotifier.value;
+    final retryGeneration = ++_playbackGeneration;
+    _videoReadyTimer?.cancel();
+    _hasVideoTrack = false;
+    debugPrint('[Player] Retrying active source with software decoding: ${_describeMediaUrl(_currentUrl!)} position=${retryPosition.inSeconds}s');
 
     try {
-      setState(() => _hwDecMode = _HwDecMode.software);
+      if (mounted) setState(() => _hwDecMode = _HwDecMode.software);
       await _configureMpvProperties();
       final url = _currentUrl!;
-      final headers = _currentSources != null &&
+      final source = _currentSources != null &&
               _currentFallbackSourceIndex < _currentSources!.length
-          ? _currentSources![_currentFallbackSourceIndex].headers ?? widget.headers
-          : widget.headers;
+          ? _currentSources![_currentFallbackSourceIndex]
+          : null;
+      final headers = source?.headers ?? widget.headers;
       await _player.open(Media(url, httpHeaders: headers));
+      _watchForFirstFrame(retryGeneration, url);
+      if (retryPosition > Duration.zero) {
+        await _player.seek(retryPosition);
+      }
       _hasError = false;
       _errorMessage = '';
       if (mounted) {
@@ -3735,7 +3813,9 @@ class _MobilePlayerScreenState extends State<MobilePlayerScreen>
 
               // ── 2. Gesture layer ─────────────────────────────────────────
               LayoutBuilder(builder: (context, constraints) {
-                return GestureDetector(
+                return IgnorePointer(
+                  ignoring: _showControls && !_isLocked,
+                  child: GestureDetector(
                   behavior: HitTestBehavior.translucent,
                   onTap: _toggleControls,
                   onDoubleTapDown: (d) {
@@ -3751,6 +3831,7 @@ class _MobilePlayerScreenState extends State<MobilePlayerScreen>
                     if (!_isLocked) _player.setRate(1.0);
                   },
                   child: Container(color: Colors.transparent),
+                  ),
                 );
               }),
 
@@ -4043,26 +4124,26 @@ class _MobilePlayerScreenState extends State<MobilePlayerScreen>
                   accent: _hwDecMode.accent,
                   tvFocusable: _isGoogleTv,
                 ),
-              if (!isPortrait) SizedBox(width: gap),
-              _GlassIconButton(
-                icon: Icons.music_note_outlined,
-                onPressed: _showAudioMenu,
-                size: btnSize, iconSize: iconSz,
-              ),
-              SizedBox(width: gap),
-              _GlassIconButton(
-                icon: Icons.subtitles_outlined,
-                onPressed: _showSubtitlesMenu,
-                size: btnSize, iconSize: iconSz,
-              ),
-              SizedBox(width: gap),
-              _GlassIconButton(
-                icon: Icons.picture_in_picture_alt_outlined,
-                onPressed: () async {
-                  await PipService.instance.enter();
-                },
-                size: btnSize, iconSize: iconSz,
-              ),
+              if (!isPortrait) SizedBox(width: gap),                    _GlassIconButton(
+                      icon: Icons.music_note_outlined,
+                      onPressed: _showAudioMenu,
+                      tvFocusable: _isGoogleTv,
+                      size: btnSize, iconSize: iconSz,
+                    ),
+              SizedBox(width: gap),                    _GlassIconButton(
+                      icon: Icons.subtitles_outlined,
+                      onPressed: _showSubtitlesMenu,
+                      tvFocusable: _isGoogleTv,
+                      size: btnSize, iconSize: iconSz,
+                    ),
+              SizedBox(width: gap),                    _GlassIconButton(
+                      icon: Icons.picture_in_picture_alt_outlined,
+                      onPressed: () async {
+                        await PipService.instance.enter();
+                      },
+                      tvFocusable: _isGoogleTv,
+                      size: btnSize, iconSize: iconSz,
+                    ),
               // Quality selector — only when the playing stream is a master
               // HLS playlist with 2+ variants.
               ValueListenableBuilder<List<HlsQuality>?>(
@@ -4183,6 +4264,7 @@ class _MobilePlayerScreenState extends State<MobilePlayerScreen>
                     ],
                     _GlassIconButton(
                       icon: Icons.link_rounded,
+                      tvFocusable: _isGoogleTv,
                       onPressed: () async {
                         await Clipboard.setData(ClipboardData(text: widget.mediaPath));
                         if (mounted) {
@@ -4198,6 +4280,7 @@ class _MobilePlayerScreenState extends State<MobilePlayerScreen>
                     _GlassPillButton(
                       text: _videoFitLabel,
                       onTap: _cycleAspectRatio,
+                      tvFocusable: _isGoogleTv,
                     ),
                   ]),
                 ],

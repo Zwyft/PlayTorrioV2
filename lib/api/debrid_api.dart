@@ -259,11 +259,18 @@ class DebridApi {
   // --- TorBox Flow ---
 
   Future<void> saveTorBoxKey(String key) async {
-    await _safeWrite('torbox_api_key', key.trim());
+    final trimmed = key.trim();
+    if (trimmed.isEmpty) {
+      await _safeDelete('torbox_api_key');
+      return;
+    }
+    await _safeWrite('torbox_api_key', trimmed);
   }
 
   Future<String?> getTorBoxKey() async {
-    return await _safeRead('torbox_api_key');
+    final key = await _safeRead('torbox_api_key');
+    final trimmed = key?.trim();
+    return trimmed == null || trimmed.isEmpty ? null : trimmed;
   }
 
   Future<List<DebridFile>> resolveTorBox(
@@ -353,11 +360,18 @@ class DebridApi {
   // so EpisodeMatcher can do its thing on full paths.
 
   Future<void> saveAllDebridKey(String key) async {
-    await _safeWrite('alldebrid_api_key', key.trim());
+    final trimmed = key.trim();
+    if (trimmed.isEmpty) {
+      await _safeDelete('alldebrid_api_key');
+      return;
+    }
+    await _safeWrite('alldebrid_api_key', trimmed);
   }
 
   Future<String?> getAllDebridKey() async {
-    return await _safeRead('alldebrid_api_key');
+    final key = await _safeRead('alldebrid_api_key');
+    final trimmed = key?.trim();
+    return trimmed == null || trimmed.isEmpty ? null : trimmed;
   }
 
   /// Recursively walks AllDebrid's nested file tree and collects every file
@@ -759,11 +773,18 @@ class DebridApi {
   // Errors come back as {success: false, error: "code"} with HTTP 4xx/5xx.
 
   Future<void> saveDebridLinkKey(String key) async {
-    await _safeWrite('debridlink_api_key', key.trim());
+    final trimmed = key.trim();
+    if (trimmed.isEmpty) {
+      await _safeDelete('debridlink_api_key');
+      return;
+    }
+    await _safeWrite('debridlink_api_key', trimmed);
   }
 
   Future<String?> getDebridLinkKey() async {
-    return await _safeRead('debridlink_api_key');
+    final key = await _safeRead('debridlink_api_key');
+    final trimmed = key?.trim();
+    return trimmed == null || trimmed.isEmpty ? null : trimmed;
   }
 
   Map<String, dynamic> _dlDecode(http.Response res) {

@@ -37,11 +37,9 @@ android {
         // Enable multidex for desugaring
         multiDexEnabled = true
 
-        // Google TV (32-bit ARMv7) release target. Keep this variant separate
-        // from the normal universal build so modern devices retain arm64.
-        ndk {
-            abiFilters += listOf("armeabi-v7a")
-        }
+        // ABI selection is configured per flavor below. Keeping it out of
+        // defaultConfig prevents the 64-bit build from being accidentally
+        // stripped down to ARMv7.
     }
 
     flavorDimensions += "device"
@@ -51,9 +49,15 @@ android {
             applicationIdSuffix = ".tv32"
             versionNameSuffix = "-tv32"
             buildConfigField("boolean", "GOOGLE_TV_BUILD", "true")
+            ndk {
+                abiFilters += listOf("armeabi-v7a")
+            }
         }
         create("universal") {
             dimension = "device"
+            ndk {
+                abiFilters += listOf("arm64-v8a")
+            }
         }
     }
 
@@ -90,4 +94,12 @@ flutter {
 dependencies {
     // Core library desugaring for modern Java features
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+
+    // Media3/ExoPlayer is the native Android TV player family used by
+    // Stremio. Keep the TV player native so D-pad/media-key handling and
+    // surface rendering do not depend on Flutter focus routing.
+    implementation("androidx.media3:media3-exoplayer:1.11.0")
+    implementation("androidx.media3:media3-exoplayer-hls:1.11.0")
+    implementation("androidx.media3:media3-exoplayer-dash:1.11.0")
+    implementation("androidx.media3:media3-ui:1.11.0")
 }

@@ -54,12 +54,24 @@ Other stuff:
 
 Check the releases page for the latest builds.
 
-Android: APK files
-Windows: Installer
-Linux: AppImage
-macOS: Zip
+Android builds:
 
-## Building
+```bash
+# Google TV / Android TV devices with 32-bit ARMv7 CPUs
+flutter build apk --release --flavor googleTv32 \
+  --target-platform android-arm \
+  --dart-define=PLAYTORRIO_GOOGLE_TV=true
+
+# Modern 64-bit ARM Android devices
+flutter build apk --release --flavor universal \
+  --target-platform android-arm64
+```
+
+The Google TV flavor uses AndroidX Media3/ExoPlayer for its built-in video
+player, matching the player family used by Stremio Android TV. The native
+player handles Android TV D-pad and media-key events directly; mobile and
+desktop builds continue to use the existing media_kit player.
+
 
 You need Flutter and the usual build tools.
 

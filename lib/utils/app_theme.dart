@@ -235,6 +235,16 @@ class _FocusableControlState extends State<FocusableControl> with SingleTickerPr
   }
 
   @override
+  void didUpdateWidget(covariant FocusableControl oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.scaleOnFocus != widget.scaleOnFocus) {
+      _scale = Tween<double>(begin: 1.0, end: widget.scaleOnFocus).animate(
+        CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic),
+      );
+    }
+  }
+
+  @override
   void dispose() {
     _controller.dispose();
     super.dispose();
@@ -254,7 +264,9 @@ class _FocusableControlState extends State<FocusableControl> with SingleTickerPr
 
     return Focus(
       autofocus: widget.autoFocus,
+      canRequestFocus: true,
       onFocusChange: (f) {
+
         setState(() => _isFocused = f);
         _updateState(f || _isHovered);
       },
@@ -298,17 +310,17 @@ class _FocusableControlState extends State<FocusableControl> with SingleTickerPr
                       border: (_isFocused || _isHovered)
                           ? Border.all(
                               color: widget.glowColor ?? AppTheme.primaryColor,
-                              width: 3,
+                              width: 2,
                             )
                           : Border.all(
                               color: Colors.transparent,
-                              width: 3,
+                              width: 2,
                             ),
                       boxShadow: (_isFocused || _isHovered) ? [
                         BoxShadow(
-                          color: (widget.glowColor ?? AppTheme.primaryColor).withValues(alpha: 0.4),
-                          blurRadius: 20,
-                          spreadRadius: 2,
+                          color: (widget.glowColor ?? AppTheme.primaryColor).withValues(alpha: 0.28),
+                          blurRadius: 12,
+                          spreadRadius: 0,
                         )
                       ] : [],
                     ),

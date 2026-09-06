@@ -58,6 +58,13 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".ExoPlayerActivity"
+            android:exported="false"
+            android:screenOrientation="landscape"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|screenLayout|density|uiMode"
+            android:theme="@style/NormalTheme" />
+
         <service android:name="com.ryanheise.audioservice.AudioService"
             android:foregroundServiceType="mediaPlayback"
             android:exported="true">

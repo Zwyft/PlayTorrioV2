@@ -3,9 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:play_torrio_native/models/movie.dart';
 import 'package:play_torrio_native/models/stream_source.dart';
 import '../services/external_player_service.dart';
+import '../services/watch_history_service.dart';
 import '../api/settings_service.dart';
 import 'player/mobile_player_screen.dart';
 import 'player/desktop_player_screen.dart';
+import 'tv_exo_player_screen.dart';
 
 class PlayerScreen extends StatefulWidget {
   final String streamUrl;
@@ -78,23 +80,28 @@ class _PlayerScreenState extends State<PlayerScreen> {
   }
 
   Future<void> _checkExternalPlayer() async {
-    final playerName = await SettingsService().getExternalPlayer();
-    final isExternal = playerName != 'Built-in Player';
+    try {
+      final playerName = await SettingsService().getExternalPlayer();
+      final isExternal = playerName != 'Built-in Player' && !_isGoogleTvContext;
 
-    if (!mounted) return;
+      if (!mounted) return;
 
-    if (isExternal) {
-      setState(() {
-        _useExternalPlayer = true;
-        _externalPlayerName = playerName;
-        _checkingPlayer = false;
-      });
-      _launchExternal();
-    } else {
-      setState(() {
-        _useExternalPlayer = false;
-        _checkingPlayer = false;
-      });
+      if (isExternal) {
+        setState(() {
+          _useExternalPlayer = true;
+          _externalPlayerName = playerName;
+          _checkingPlayer = false;
+        });
+        _launchExternal();
+      } else {
+        setState(() {
+          _useExternalPlayer = false;
+          _checkingPlayer = false;
+        });
+      }
+    } catch (error) {
+      debugPrint('[PlayerScreen] External player preference failed: $error');
+      if (mounted) setState(() => _checkingPlayer = false);
     }
   }
 
@@ -129,6 +136,71 @@ class _PlayerScreenState extends State<PlayerScreen> {
     }
   }
 
+  Future<void> _saveTvProgress(Duration position, Duration duration) async {
+    final movie = widget.movie;
+    if (movie == null || position.inMilliseconds < 10_000 || duration.inMilliseconds <= 0) {
+      return;
+    }
+
+    final isTorrent = widget.magnetLink != null;
+    final isStremioDirect = widget.activeProvider == 'stremio_direct';
+    final String method;
+    final String sourceId;
+    if (isTorrent) {
+      method = 'torrent';
+      sourceId = widget.magnetLink!;
+    } else if (isStremioDirect) {
+      method = 'stremio_direct';
+      sourceId = widget.streamUrl;
+    } else if (widget.activeProvider == 'amri') {
+      method = 'amri';
+      sourceId = widget.streamUrl;
+    } else if (widget.activeProvider != null) {
+      method = 'stream';
+      sourceId = widget.activeProvider!;
+    } else {
+      method = 'amri';
+      sourceId = widget.streamUrl;
+    }
+
+    await WatchHistoryService().saveProgress(
+      tmdbId: movie.id,
+      imdbId: movie.imdbId,
+      title: widget.title,
+      posterPath: movie.posterPath,
+      method: method,
+      sourceId: sourceId,
+      position: position.inMilliseconds,
+      duration: duration.inMilliseconds,
+      season: widget.selectedSeason,
+      episode: widget.selectedEpisode,
+      episodeTitle: widget.selectedEpisode == null
+          ? null
+          : 'Episode ${widget.selectedEpisode}',
+      magnetLink: widget.magnetLink,
+      fileIndex: widget.fileIndex,
+      streamUrl: isStremioDirect ? widget.streamUrl : null,
+      stremioId: widget.stremioId,
+      stremioAddonBaseUrl: widget.stremioAddonBaseUrl,
+      stremioType: movie.mediaType == 'tv' ? 'series' : 'movie',
+      mediaType: movie.mediaType,
+    );
+  }
+
+  bool get _isGoogleTvContext {
+    if (!Platform.isAndroid) return false;
+    final isTvBuild = const bool.fromEnvironment('PLAYTORRIO_GOOGLE_TV');
+    final views = WidgetsBinding.instance.platformDispatcher.views;
+    final shortestSide = views.isEmpty ? 0.0 : views.first.size.shortestSide;
+    return isTvBuild || shortestSide >= 600;
+  }
+
+  bool _isGoogleTv(BuildContext context) {
+    if (!Platform.isAndroid) return false;
+    return const bool.fromEnvironment('PLAYTORRIO_GOOGLE_TV') ||
+        MediaQuery.sizeOf(context).shortestSide >= 600;
+  }
+
   @override
   Widget build(BuildContext context) {
     // Still checking settings
@@ -155,6 +227,19 @@ class _PlayerScreenState extends State<PlayerScreen> {
             _externalLaunched = false;
           });
         },
+      );
+    }
+
+    // The Google TV flavor uses native Media3/ExoPlayer, matching Stremio's
+    // Android TV player family and giving the remote a native media surface.
+    if (_isGoogleTv(context)) {
+      return TvExoPlayerScreen(
+        url: widget.streamUrl,
+        title: widget.title,
+        audioUrl: widget.audioUrl,
+        headers: widget.headers,
+        startPosition: widget.startPosition,
+        onSaveProgress: widget.onSaveProgress ?? _saveTvProgress,
       );
     }
 

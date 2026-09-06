@@ -129,7 +129,10 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     _checkForUpdates();
     // The TV flavor sets this flag before Dart starts. The size fallback also
     // supports Android TV devices that do not expose a TV-specific feature.
+    final isExplicitTvRoute =
+        WidgetsBinding.instance.platformDispatcher.defaultRouteName == '/google-tv';
     _isGoogleTv = const bool.fromEnvironment('PLAYTORRIO_GOOGLE_TV') ||
+        isExplicitTvRoute ||
         MediaQueryData.fromView(
           WidgetsBinding.instance.platformDispatcher.views.first,
         ).size.shortestSide >= 600;

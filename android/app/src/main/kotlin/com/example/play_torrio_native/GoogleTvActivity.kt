@@ -6,6 +6,8 @@ import androidx.annotation.Keep
 
 @Keep
 class GoogleTvActivity : MainActivity() {
+    override fun getInitialRoute(): String = "/google-tv"
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // Keep the TV UI in landscape on launch.

@@ -13,7 +13,7 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 
-class MainActivity : AudioServiceActivity() {
+open class MainActivity : AudioServiceActivity() {
     private var pendingExoResult: MethodChannel.Result? = null
     private val exoRequestCode = 7412
 
@@ -80,7 +80,7 @@ class MainActivity : AudioServiceActivity() {
         }
     }
 
-    override fun onCreate(savedInstanceState: Bundle?) {
+    open override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.decorView.setBackgroundColor(0xFF0B0B12.toInt())
 

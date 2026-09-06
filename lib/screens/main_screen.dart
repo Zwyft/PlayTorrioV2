@@ -87,21 +87,13 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   };
 
   /// Currently visible nav IDs (always ends with 'settings').
-  List<String> _visibleIds = [..._defaultVisibleIdsForContext(), 'settings'];
+  List<String> _visibleIds = [...SettingsService.allNavIds, 'settings'];
 
-  /// On Google TV builds we start with a smaller curated rail instead of the
-  /// full desktop/phone nav set. Other items remain reachable through Search,
-  /// within their own screens, or via Settings.
+  /// Google TV intentionally exposes only the primary destinations in the
+  /// rail. The full catalog remains available through the app's other flows.
   static const List<String> _tvVisibleIds = [
-    'home', 'discover', 'mylist', 'search', 'live_matches', 'iptv', 'music', 'settings',
+    'home', 'discover', 'mylist', 'search', 'live_matches', 'iptv', 'music',
   ];
-
-  List<String> _defaultVisibleIdsForContext() {
-    if (_isGoogleTv) {
-      return _tvVisibleIds;
-    }
-    return SettingsService.allNavIds;
-  }
 
   @override
   void initState() {
@@ -134,19 +126,19 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
       'settings':     const SettingsScreen(),
     };
 
-    _loadNavbarConfig();
     _checkForUpdates();
-    if (_isGoogleTv && _selectedIndex < 0) {
-      _selectedIndex = _visibleIds.indexOf('home').clamp(0, _visibleIds.length - 1);
-      _syncTvRailFocusNodes();
-    }
     // The TV flavor sets this flag before Dart starts. The size fallback also
     // supports Android TV devices that do not expose a TV-specific feature.
     _isGoogleTv = const bool.fromEnvironment('PLAYTORRIO_GOOGLE_TV') ||
         MediaQueryData.fromView(
           WidgetsBinding.instance.platformDispatcher.views.first,
         ).size.shortestSide >= 600;
+    _visibleIds = _isGoogleTv
+        ? [..._tvVisibleIds, 'settings']
+        : [...SettingsService.allNavIds, 'settings'];
+    _selectedIndex = _visibleIds.indexOf('home');
     _syncTvRailFocusNodes();
+    _loadNavbarConfig();
     if (_isGoogleTv) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _requestTvRailFocus('home');
@@ -174,24 +166,27 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     final visible = await SettingsService().getNavbarConfig();
     if (!mounted) return;
     setState(() {
-      // Remember which screen we're currently on
+      // TV startup is deliberately independent of the phone/desktop navbar
+      // preference so the old full navigation menu cannot reappear.
       final currentId = _selectedIndex < _visibleIds.length
           ? _visibleIds[_selectedIndex]
           : null;
-      final freshIds = _defaultVisibleIdsForContext();
-      _visibleIds = [...freshIds, 'settings'];
-      if (_isGoogleTv && currentId == null) {
-        _selectedIndex = freshIds.indexOf('home').clamp(0, freshIds.length - 1);
-      }
+      _visibleIds = _isGoogleTv
+          ? [..._tvVisibleIds, 'settings']
+          : [...visible, 'settings'];
       _syncTvRailFocusNodes();
-      // Try to stay on the same screen after reorder/hide
+
       if (currentId != null) {
         final newIndex = _visibleIds.indexOf(currentId);
         if (newIndex >= 0) {
           _selectedIndex = newIndex;
+        } else if (_isGoogleTv) {
+          _selectedIndex = _visibleIds.indexOf('home');
         } else if (_selectedIndex >= _visibleIds.length) {
           _selectedIndex = _visibleIds.length - 1;
         }
+      } else if (_isGoogleTv) {
+        _selectedIndex = _visibleIds.indexOf('home');
       } else if (_selectedIndex >= _visibleIds.length) {
         _selectedIndex = 0;
       }
@@ -493,11 +488,11 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
           Row(
             children: [
               if (useNavRail)
-              SingleChildScrollView(
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(minHeight: MediaQuery.of(context).size.height),
-                  child: IntrinsicHeight(
-                    child: NavigationRail(
+                SingleChildScrollView(
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(minHeight: MediaQuery.of(context).size.height),
+                    child: IntrinsicHeight(
+                      child: NavigationRail(
                           backgroundColor: Colors.transparent,
                           selectedIndex: _selectedIndex,
                           onDestinationSelected: _onItemTapped,
@@ -530,7 +525,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
                       ),
                     ),
                   ),
-                
+                ),
             Expanded(
               child: IndexedStack(
                 index: _selectedIndex,

@@ -525,7 +525,6 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
                       ),
                     ),
                   ),
-                ),
               Expanded(
                 child: IndexedStack(
                   index: _selectedIndex,

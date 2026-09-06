@@ -1,6 +1,5 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:play_torrio_native/models/movie.dart';
 import 'package:play_torrio_native/models/stream_source.dart';
 import '../services/external_player_service.dart';
@@ -191,8 +190,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
   bool get _isGoogleTvContext {
     if (!Platform.isAndroid) return false;
     final isTvBuild = const bool.fromEnvironment('PLAYTORRIO_GOOGLE_TV');
-    final views = WidgetsBinding.instance.platformDispatcher.views;
-    final shortestSide = views.isEmpty ? 0.0 : views.first.size.shortestSide;
+    final shortestSide = MediaQueryData.fromView(
+        WidgetsBinding.instance.platformDispatcher.views.first,
+      ).size.shortestSide;
     return isTvBuild || shortestSide >= 600;
   }
 

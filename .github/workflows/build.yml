@@ -2,10 +2,10 @@ name: Build PlayTorrio Android TV
 
 on:
   push:
-    branches: [main]
+    branches: [main, google-tv-32bit-v7]
     tags: ['v*']
   pull_request:
-    branches: [main]
+    branches: [main, google-tv-32bit-v7]
   workflow_dispatch:
 
 env:

@@ -49,12 +49,15 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   int _selectedIndex = 0;
   final FocusNode _tvNavigationFocus = FocusNode(debugLabel: 'tv-navigation');
+  final FocusScopeNode _tvContentFocusScope = FocusScopeNode(debugLabel: 'tv-content');
+  final ScrollController _tvRailScrollController = ScrollController();
+  final Map<String, FocusNode> _tvRailFocusNodes = {};
+  bool _tvRailHasFocus = true;
   bool _isGoogleTv = false;
-  bool _showingDashboard = true;
+  // Legacy dashboard state is retained for the non-TV keyboard layout.
   int _dashboardIndex = 0;
   Timer? _metricsDebounce;
   Timer? _metricsSafety;
-  final ScrollController _tvGridScrollController = ScrollController();
 
   /// All screens keyed by nav ID — created once, never recreated.
   late final Map<String, Widget> _allScreens;
@@ -125,8 +128,9 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
         MediaQueryData.fromView(
           WidgetsBinding.instance.platformDispatcher.views.first,
         ).size.shortestSide >= 600;
+    _syncTvRailFocusNodes();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && _isGoogleTv) _tvNavigationFocus.requestFocus();
+      if (mounted && _isGoogleTv) _requestTvRailFocus();
     });
   }
 
@@ -155,6 +159,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
           ? _visibleIds[_selectedIndex]
           : null;
       _visibleIds = [...visible, 'settings'];
+      _syncTvRailFocusNodes();
       // Try to stay on the same screen after reorder/hide
       if (currentId != null) {
         final newIndex = _visibleIds.indexOf(currentId);
@@ -167,6 +172,21 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
         _selectedIndex = 0;
       }
     });
+  }
+
+  void _syncTvRailFocusNodes() {
+    final validIds = _visibleIds.toSet();
+    for (final id in _tvRailFocusNodes.keys.toList()) {
+      if (!validIds.contains(id)) {
+        _tvRailFocusNodes.remove(id)?.dispose();
+      }
+    }
+    for (final id in _visibleIds) {
+      _tvRailFocusNodes.putIfAbsent(
+        id,
+        () => FocusNode(debugLabel: 'tv-nav-$id'),
+      );
+    }
   }
 
   void _onNavbarConfigChanged() {
@@ -210,54 +230,134 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     final data = MainScreen.stremioSearchNotifier.value;
     if (data == null || (data['query'] ?? '').isEmpty) return;
     final idx = _visibleIds.indexOf('search');
-    if (idx != -1) setState(() => _selectedIndex = idx);
+    if (idx != -1) {
+      setState(() => _selectedIndex = idx);
+      if (_isGoogleTv) _requestTvRailFocus('search');
+    }
   }
 
   void _onRequestTab() {
     final id = MainScreen.requestTab.value;
     if (id == null) return;
     final idx = _visibleIds.indexOf(id);
-    if (idx != -1 && mounted) setState(() => _selectedIndex = idx);
+    if (idx != -1 && mounted) {
+      setState(() => _selectedIndex = idx);
+      if (_isGoogleTv) _requestTvRailFocus(id);
+    }
     MainScreen.requestTab.value = null;
   }
 
   void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-      _showingDashboard = false;
-    });
+    if (index < 0 || index >= _visibleIds.length) return;
+    setState(() => _selectedIndex = index);
+    if (_isGoogleTv) {
+      _requestTvRailFocus(_visibleIds[index]);
+    } else {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _tvNavigationFocus.requestFocus();
+      });
+    }
+  }
+
+  void _requestTvRailFocus([String? id]) {
+    if (_tvRailFocusNodes.isEmpty) return;
+    final targetId = id ?? _visibleIds[_selectedIndex.clamp(0, _visibleIds.length - 1).toInt()];
+    final node = _tvRailFocusNodes[targetId];
+    if (node == null) return;
+    setState(() => _tvRailHasFocus = true);
+    node.requestFocus();
+    _scrollTvRailToSelected(targetId);
+  }
+
+  void _moveTvRail(int direction) {
+    final currentId = _visibleIds[_selectedIndex.clamp(0, _visibleIds.length - 1).toInt()];
+    final current = _visibleIds.indexOf(currentId);
+    final next = (current + direction).clamp(0, _visibleIds.length - 1).toInt();
+    setState(() => _selectedIndex = next);
+    _requestTvRailFocus(_visibleIds[next]);
+  }
+
+  void _enterTvContent() {
+    setState(() => _tvRailHasFocus = false);
+    _tvContentFocusScope.requestFocus();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _tvNavigationFocus.requestFocus();
+      if (mounted) _tvContentFocusScope.nextFocus();
     });
   }
 
-  void _returnToDashboard() {
-    setState(() => _showingDashboard = true);
+  void _scrollTvRailToSelected(String id) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _tvNavigationFocus.requestFocus();
+      if (!mounted || !_tvRailScrollController.hasClients) return;
+      final index = _visibleIds.indexOf(id);
+      if (index < 0) return;
+      _tvRailScrollController.animateTo(
+        (index * 56.0).clamp(0.0, _tvRailScrollController.position.maxScrollExtent).toDouble(),
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOutCubic,
+      );
     });
   }
+
+  KeyEventResult _handleTvRailKey(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent) return KeyEventResult.ignored;
+    switch (event.logicalKey) {
+      case LogicalKeyboardKey.arrowUp:
+        _moveTvRail(-1);
+        return KeyEventResult.handled;
+      case LogicalKeyboardKey.arrowDown:
+        _moveTvRail(1);
+        return KeyEventResult.handled;
+      case LogicalKeyboardKey.arrowRight:
+        _enterTvContent();
+        return KeyEventResult.handled;
+      case LogicalKeyboardKey.arrowLeft:
+        return KeyEventResult.handled;
+      default:
+        return KeyEventResult.ignored;
+    }
+  }
+
+  KeyEventResult _handleTvContentKey(FocusNode node, KeyEvent event) {
+    if (event is KeyDownEvent &&
+        (event.logicalKey == LogicalKeyboardKey.arrowLeft ||
+            event.logicalKey == LogicalKeyboardKey.escape)) {
+      _requestTvRailFocus();
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
 
   void searchComics(String query) {
     final idx = _visibleIds.indexOf('comics');
-    if (idx != -1) setState(() => _selectedIndex = idx);
+    if (idx != -1) {
+      setState(() => _selectedIndex = idx);
+      if (_isGoogleTv) _requestTvRailFocus('comics');
+    }
   }
 
   void searchManga(String query) {
     final idx = _visibleIds.indexOf('manga');
-    if (idx != -1) setState(() => _selectedIndex = idx);
+    if (idx != -1) {
+      setState(() => _selectedIndex = idx);
+      if (_isGoogleTv) _requestTvRailFocus('manga');
+    }
   }
 
   @override
   void dispose() {
     _metricsDebounce?.cancel();
     _metricsSafety?.cancel();
-    _tvGridScrollController.dispose();
     WidgetsBinding.instance.removeObserver(this);
     MainScreen.stremioSearchNotifier.removeListener(_onStremioSearch);
     MainScreen.requestTab.removeListener(_onRequestTab);
     SettingsService.navbarChangeNotifier.removeListener(_onNavbarConfigChanged);
     _tvNavigationFocus.dispose();
+    _tvContentFocusScope.dispose();
+    _tvRailScrollController.dispose();
+    for (final node in _tvRailFocusNodes.values) {
+      node.dispose();
+    }
     super.dispose();
   }
 
@@ -270,8 +370,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     final bool useNavRail = isDesktop || isLandscape;
 
     if (_isGoogleTv) {
-      if (_showingDashboard) return _buildTvDashboard();
-      return _buildTvContent();
+      return _buildTvShell();
     }
 
     return Focus(
@@ -426,157 +525,27 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   }
 
   void _moveDashboard(int dx, int dy) {
-    const columns = 4;
-    final total = _visibleIds.length;
-    final row = _dashboardIndex ~/ columns;
-    final col = _dashboardIndex % columns;
-    final maxRow = (total - 1) ~/ columns;
-    final nextRow = (row + dy).clamp(0, maxRow);
-    final nextCol = (col + dx).clamp(0, columns - 1);
-    final next = nextRow * columns + nextCol;
-    if (next >= 0 && next < total) {
+    // Kept for the compact/mobile keyboard layout. The TV layout uses the
+    // dedicated rail movement below instead of a startup tile grid.
+    if (dx == 0 && dy != 0 && _visibleIds.isNotEmpty) {
+      final next = (_dashboardIndex + dy).clamp(0, _visibleIds.length - 1).toInt();
       setState(() => _dashboardIndex = next);
-      _scrollToFocused(next);
-    } else {
-      final lastValid = total - 1;
-      if (lastValid != _dashboardIndex) {
-        setState(() => _dashboardIndex = lastValid);
-        _scrollToFocused(lastValid);
-      }
     }
   }
 
-  void _scrollToFocused(int index) {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!_tvGridScrollController.hasClients) return;
-      const columns = 4;
-      final row = index ~/ columns;
-      // Estimate tile height: available height / number of visible rows
-      // Each row ~100px with 18px spacing; scroll so the focused row is centered
-      final tileHeight = 118.0; // ~100 tile + 18 spacing
-      final headerHeight = 260.0; // title + padding above grid
-      final screenH = MediaQuery.of(context).size.height;
-      final viewportH = screenH - headerHeight - 80; // minus footer
-      final targetOffset = (row * tileHeight) - (viewportH / 2) + (tileHeight / 2);
-      final maxScroll = _tvGridScrollController.position.maxScrollExtent;
-      final clampedOffset = targetOffset.clamp(0.0, maxScroll);
-      _tvGridScrollController.animateTo(
-        clampedOffset,
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeOutCubic,
-      );
-    });
-  }
+  Widget _buildTvShell() {
+    final selectedId = _visibleIds[_selectedIndex.clamp(0, _visibleIds.length - 1).toInt()];
 
-  Widget _buildTvDashboard() {
-    return Focus(
-      focusNode: _tvNavigationFocus,
-      autofocus: true,
-      onKeyEvent: (node, event) {
-        if (event is! KeyDownEvent) return KeyEventResult.ignored;
-        final key = event.logicalKey;
-        if (key == LogicalKeyboardKey.arrowRight) {
-          _moveDashboard(1, 0);
-          return KeyEventResult.handled;
-        }
-        if (key == LogicalKeyboardKey.arrowLeft) {
-          _moveDashboard(-1, 0);
-          return KeyEventResult.handled;
-        }
-        if (key == LogicalKeyboardKey.arrowDown) {
-          _moveDashboard(0, 1);
-          return KeyEventResult.handled;
-        }
-        if (key == LogicalKeyboardKey.arrowUp) {
-          _moveDashboard(0, -1);
-          return KeyEventResult.handled;
-        }
-        if (key == LogicalKeyboardKey.enter ||
-            key == LogicalKeyboardKey.select ||
-            key == LogicalKeyboardKey.gameButtonA) {
-          _onItemTapped(_dashboardIndex);
-          return KeyEventResult.handled;
-        }
-        return KeyEventResult.ignored;
-      },
-      child: Scaffold(
-        body: Container(
-          decoration: AppTheme.effectiveBackground,
-          child: SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(48, 28, 48, 32),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.play_circle_fill, color: AppTheme.current.primaryColor, size: 42),
-                      const SizedBox(width: 14),
-                      const Text('PLAYTORRIO', style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w800, letterSpacing: 1.5)),
-                      const Spacer(),
-                      Text('Choose a section', style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 16)),
-                    ],
-                  ),
-                  const SizedBox(height: 34),
-                  const Text('What do you want to watch?', style: TextStyle(color: Colors.white, fontSize: 30, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 24),
-                  Expanded(
-                    child: GridView.builder(
-                      controller: _tvGridScrollController,
-                      itemCount: _visibleIds.length,
-                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 4,
-                        crossAxisSpacing: 18,
-                        mainAxisSpacing: 18,
-                        childAspectRatio: 1.75,
-                      ),
-                      itemBuilder: (context, index) {
-                        final id = _visibleIds[index];
-                        final meta = _navMeta[id]!;
-                        final selected = index == _dashboardIndex;
-                        return AnimatedContainer(
-                          duration: const Duration(milliseconds: 140),
-                          decoration: BoxDecoration(
-                            color: selected ? AppTheme.current.primaryColor.withValues(alpha: 0.28) : AppTheme.current.bgCard.withValues(alpha: 0.9),
-                            borderRadius: BorderRadius.circular(18),
-                            border: Border.all(
-                              color: selected ? AppTheme.current.primaryColor : Colors.white.withValues(alpha: 0.08),
-                              width: selected ? 3 : 1,
-                            ),
-                            boxShadow: selected ? [BoxShadow(color: AppTheme.current.primaryColor.withValues(alpha: 0.35), blurRadius: 22)] : null,
-                          ),
-                          child: InkWell(
-                            borderRadius: BorderRadius.circular(18),
-                            onTap: () => _onItemTapped(index),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(selected ? meta['active'] as IconData : meta['icon'] as IconData, color: selected ? Colors.white : Colors.white70, size: 34),
-                                const SizedBox(width: 14),
-                                Flexible(child: Text(meta['label'] as String, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(color: selected ? Colors.white : Colors.white70, fontSize: 17, fontWeight: selected ? FontWeight.bold : FontWeight.w500))),
-                              ],
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                  Text('Use the directional pad to move • Press OK to open', style: TextStyle(color: Colors.white.withValues(alpha: 0.45), fontSize: 14)),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTvContent() {
-    final id = _visibleIds[_selectedIndex];
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) {
-        if (!didPop) _returnToDashboard();
+        if (!didPop) {
+          if (_tvRailHasFocus) {
+            Navigator.of(context).maybePop();
+          } else {
+            _requestTvRailFocus();
+          }
+        }
       },
       child: FocusTraversalGroup(
         policy: ReadingOrderTraversalPolicy(),
@@ -584,36 +553,25 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
           body: Stack(
             children: [
               Container(decoration: AppTheme.effectiveBackground),
-              // Content is painted first so the TV back affordance remains
-              // above every child screen and can receive D-pad focus.
-              _allScreens[id]!,
-              Positioned(
-                top: 16,
-                left: 16,
-                child: FocusableControl(
-                  onTap: _returnToDashboard,
-                  autoFocus: true,
-                  borderRadius: 12,
-                  glowColor: AppTheme.current.primaryColor,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: AppTheme.current.bgCard.withValues(alpha: 0.92),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.arrow_back_rounded, color: AppTheme.current.primaryColor, size: 20),
-                        const SizedBox(width: 8),
-                        Text(
-                          _navMeta[id]!['label'] as String,
-                          style: TextStyle(color: Colors.white.withValues(alpha: 0.88), fontSize: 14, fontWeight: FontWeight.w600),
+              SafeArea(
+                child: Row(
+                  children: [
+                    _buildTvRail(selectedId),
+                    Expanded(
+                      child: FocusScope(
+                        node: _tvContentFocusScope,
+                        child: Focus(
+                          onKeyEvent: _handleTvContentKey,
+                          child: ClipRect(
+                            child: IndexedStack(
+                              index: _selectedIndex,
+                              children: _visibleIds.map((id) => _allScreens[id]!).toList(),
+                            ),
+                          ),
                         ),
-                      ],
+                      ),
                     ),
-                  ),
+                  ],
                 ),
               ),
             ],
@@ -623,6 +581,170 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     );
   }
 
+  Widget _buildTvRail(String selectedId) {
+    return Container(
+      width: 232,
+      decoration: BoxDecoration(
+        color: AppTheme.current.bgDark.withValues(alpha: 0.94),
+        border: Border(right: BorderSide(color: Colors.white.withValues(alpha: 0.08))),
+        boxShadow: const [
+          BoxShadow(color: Colors.black38, blurRadius: 24, offset: Offset(8, 0)),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 24, 18, 22),
+            child: Row(
+              children: [
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        AppTheme.current.primaryColor,
+                        Color.lerp(AppTheme.current.primaryColor, AppTheme.current.accentColor, 0.45)!,
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppTheme.current.primaryColor.withValues(alpha: 0.35),
+                        blurRadius: 14,
+                      ),
+                    ],
+                  ),
+                  child: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 25),
+                ),
+                const SizedBox(width: 11),
+                const Expanded(
+                  child: Text(
+                    'PLAYTORRIO',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.1,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 22),
+            child: Text(
+              'BROWSE',
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.32),
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1.5,
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Expanded(
+            child: Scrollbar(
+              controller: _tvRailScrollController,
+              thumbVisibility: true,
+              child: ListView.builder(
+                controller: _tvRailScrollController,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                itemCount: _visibleIds.length,
+                itemBuilder: (context, index) {
+                  final id = _visibleIds[index];
+                  final meta = _navMeta[id]!;
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: FocusableControl(
+                      key: ValueKey('tv-nav-$id'),
+                      focusNode: _tvRailFocusNodes[id],
+                      onTap: () => _onItemTapped(index),
+                      onKeyEvent: _handleTvRailKey,
+                      borderRadius: 13,
+                      glowColor: AppTheme.current.primaryColor,
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 180),
+                        height: 50,
+                        padding: const EdgeInsets.symmetric(horizontal: 14),
+                        decoration: BoxDecoration(
+                          color: selectedId == id
+                              ? AppTheme.current.primaryColor.withValues(alpha: 0.18)
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(13),
+                          border: Border.all(
+                            color: selectedId == id
+                                ? AppTheme.current.primaryColor.withValues(alpha: 0.5)
+                                : Colors.transparent,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              (selectedId == id ? meta['active'] : meta['icon']) as IconData,
+                              color: selectedId == id
+                                  ? Colors.white
+                                  : Colors.white.withValues(alpha: 0.58),
+                              size: 21,
+                            ),
+                            const SizedBox(width: 13),
+                            Expanded(
+                              child: Text(
+                                meta['label'] as String,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: selectedId == id
+                                      ? Colors.white
+                                      : Colors.white.withValues(alpha: 0.66),
+                                  fontSize: 14,
+                                  fontWeight: selectedId == id
+                                      ? FontWeight.w700
+                                      : FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                            if (selectedId == id)
+                              Container(
+                                width: 5,
+                                height: 5,
+                                decoration: BoxDecoration(
+                                  color: AppTheme.current.accentColor,
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(22, 12, 22, 18),
+            child: Text(
+              _tvRailHasFocus
+                  ? 'RIGHT  Open content'
+                  : 'LEFT  Open navigation',
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.35),
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.4,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
   Widget _buildScrollableBottomNav() {
     final lightMode = AppTheme.isLightMode;
 

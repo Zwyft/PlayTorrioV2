@@ -198,12 +198,14 @@ class AppTheme {
 }
 
 class FocusableControl extends StatefulWidget {
+  final FocusNode? focusNode;
   final Widget child;
   final VoidCallback? onTap;
   final bool autoFocus;
   final double borderRadius;
   final Color? glowColor;
   final double scaleOnFocus;
+  final KeyEventResult Function(FocusNode node, KeyEvent event)? onKeyEvent;
 
   const FocusableControl({
     super.key,
@@ -213,6 +215,8 @@ class FocusableControl extends StatefulWidget {
     this.borderRadius = 12.0,
     this.glowColor,
     this.scaleOnFocus = 1.0, // Changed default from 1.05 to 1.0 (no zoom)
+    this.focusNode,
+    this.onKeyEvent,
   });
 
   @override
@@ -263,6 +267,7 @@ class _FocusableControlState extends State<FocusableControl> with SingleTickerPr
     final lightMode = AppTheme.isLightMode;
 
     return Focus(
+      focusNode: widget.focusNode,
       autofocus: widget.autoFocus,
       canRequestFocus: true,
       onFocusChange: (f) {
@@ -271,6 +276,10 @@ class _FocusableControlState extends State<FocusableControl> with SingleTickerPr
         _updateState(f || _isHovered);
       },
       onKeyEvent: (node, event) {
+        final customResult = widget.onKeyEvent?.call(node, event);
+        if (customResult != null && customResult != KeyEventResult.ignored) {
+          return customResult;
+        }
         if (widget.onTap != null && event is KeyDownEvent &&
             (event.logicalKey == LogicalKeyboardKey.enter ||
                 event.logicalKey == LogicalKeyboardKey.select ||

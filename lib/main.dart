@@ -273,7 +273,7 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
   /// HomeScreen build, layout, paint and prefetch in the background. That
   /// way, when the overlay fades out, the first frames of the real UI are
   /// already warm and scrolling is smooth instead of janky.
-  static const Duration _minSplashDuration = Duration(milliseconds: 2800);
+  static const Duration _minSplashDuration = Duration(milliseconds: 1200);
 
   /// Built once and kept alive in the widget tree behind the splash overlay
   /// so its element (and all child State objects) survive the transition
@@ -299,6 +299,12 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
     );
 
     _initEngine();
+    // MainScreen is already mounted behind the splash. Reveal it on a short,
+    // fixed timer while network and media services continue warming in the
+    // background instead of blocking the first usable frame on them.
+    Future<void>.delayed(_minSplashDuration, () {
+      if (mounted) _dismissSplash();
+    });
   }
 
   /// Called once the engine is ready AND the minimum splash time has

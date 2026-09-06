@@ -3135,16 +3135,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final currentVal = controller.text;
     final hasValue = currentVal.isNotEmpty;
     return FocusableControl(
-      onTap: () {
-        _showTvInputSaveDialog(
+      onTap: () async {
+        final value = await _showTvInputSaveDialog(
           title: title ?? (hintText ?? 'Enter value'),
           initialValue: currentVal,
           obscureText: obscureText,
-          onSubmit: (val) {
-            controller.text = val;
-            if (onSave != null) onSave();
-          },
         );
+        if (!mounted || value == null) return;
+        controller.text = value;
+        if (onSave != null) {
+          await Future<void>.delayed(Duration.zero);
+          if (mounted) onSave();
+        }
       },
       scaleOnFocus: 1.0,
       child: Padding(
@@ -3182,14 +3184,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   /// Modal dialog for TV text input. Opens the system keyboard in a contained
   /// dialog so the user can type and then explicitly Save or Cancel.
-  void _showTvInputSaveDialog({
+  Future<String?> _showTvInputSaveDialog({
     required String title,
     required String initialValue,
     bool obscureText = false,
-    required ValueChanged<String> onSubmit,
   }) {
     final ctrl = TextEditingController(text: initialValue);
-    showDialog(
+    return showDialog<String>(
       context: context,
       barrierDismissible: true,
       builder: (ctx) {
@@ -3238,8 +3239,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   const SizedBox(width: 12),
                   FocusableControl(
                     onTap: () {
-                      onSubmit(ctrl.text);
-                      Navigator.of(ctx).pop();
+                      Navigator.of(ctx).pop(ctrl.text);
                     },
                     scaleOnFocus: 1.0,
                     glowColor: Colors.greenAccent,
@@ -3257,22 +3257,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ],
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: Text('Cancel', style: TextStyle(color: AppTheme.current.primaryColor)),
-            ),
-            TextButton(
-              onPressed: () {
-                onSubmit(ctrl.text);
-                Navigator.of(ctx).pop();
-              },
-              child: const Text('Save', style: TextStyle(color: Colors.greenAccent)),
-            ),
-          ],
         );
       },
-    ).then((_) => ctrl.dispose());
+    ).whenComplete(ctrl.dispose);
   }
 
   Widget _buildFocusableDropdown(String title, String subtitle, String value, List<String> options, ValueChanged<String?> onChanged) {

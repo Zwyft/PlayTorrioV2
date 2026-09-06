@@ -52,7 +52,8 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   final FocusScopeNode _tvContentFocusScope = FocusScopeNode(debugLabel: 'tv-content');
   final ScrollController _tvRailScrollController = ScrollController();
   final Map<String, FocusNode> _tvRailFocusNodes = {};
-  bool _tvRailHasFocus = true;
+  bool _tvRailHasFocus = false;
+  bool _tvRailExpanded = false;
   bool _isGoogleTv = false;
   // Legacy dashboard state is retained for the non-TV keyboard layout.
   int _dashboardIndex = 0;
@@ -144,7 +145,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     _loadNavbarConfig();
     if (_isGoogleTv) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _requestTvRailFocus('home');
+        if (mounted) _enterTvContent();
       });
     }
   }
@@ -281,13 +282,24 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     }
   }
 
+  void _selectTvRailItem(int index) {
+    if (index < 0 || index >= _visibleIds.length) return;
+    setState(() => _selectedIndex = index);
+    _enterTvContent();
+  }
+
   void _requestTvRailFocus([String? id]) {
     if (_tvRailFocusNodes.isEmpty) return;
     final targetId = id ?? _visibleIds[_selectedIndex.clamp(0, _visibleIds.length - 1).toInt()];
     final node = _tvRailFocusNodes[targetId];
     if (node == null) return;
-    setState(() => _tvRailHasFocus = true);
-    node.requestFocus();
+    setState(() {
+      _tvRailExpanded = true;
+      _tvRailHasFocus = true;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) node.requestFocus();
+    });
     _scrollTvRailToSelected(targetId);
   }
 
@@ -300,7 +312,10 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   }
 
   void _enterTvContent() {
-    setState(() => _tvRailHasFocus = false);
+    setState(() {
+      _tvRailExpanded = false;
+      _tvRailHasFocus = false;
+    });
     _tvContentFocusScope.requestFocus();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _tvContentFocusScope.nextFocus();
@@ -577,7 +592,17 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
               SafeArea(
                 child: Row(
                   children: [
-                    _buildTvRail(selectedId),
+                    ClipRect(
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 180),
+                        curve: Curves.easeOutCubic,
+                        width: _tvRailExpanded ? 232 : 0,
+                        child: SizedBox(
+                          width: 232,
+                          child: _buildTvRail(selectedId),
+                        ),
+                      ),
+                    ),
                     Expanded(
                       child: FocusScope(
                         node: _tvContentFocusScope,
@@ -685,7 +710,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
                     child: FocusableControl(
                       key: ValueKey('tv-nav-$id'),
                       focusNode: _tvRailFocusNodes[id],
-                      onTap: () => _onItemTapped(index),
+                      onTap: () => _selectTvRailItem(index),
                       onKeyEvent: _handleTvRailKey,
                       borderRadius: 13,
                       glowColor: AppTheme.current.primaryColor,

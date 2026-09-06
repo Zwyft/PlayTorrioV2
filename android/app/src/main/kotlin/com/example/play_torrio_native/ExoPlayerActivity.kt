@@ -127,7 +127,7 @@ class ExoPlayerActivity : Activity() {
         mimeTypeFor(url)?.let(mediaItemBuilder::setMimeType)
 
         val loadControl = DefaultLoadControl.Builder()
-            .setBufferDurationsMs(2_500, 30_000, 1_500, 3_000)
+            .setBufferDurationsMs(2_500, 30_000, 3_000, 1_500)
             .build()
 
         player = ExoPlayer.Builder(this)

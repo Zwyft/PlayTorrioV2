@@ -87,7 +87,21 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   };
 
   /// Currently visible nav IDs (always ends with 'settings').
-  List<String> _visibleIds = [...SettingsService.allNavIds, 'settings'];
+  List<String> _visibleIds = [..._defaultVisibleIdsForContext(), 'settings'];
+
+  /// On Google TV builds we start with a smaller curated rail instead of the
+  /// full desktop/phone nav set. Other items remain reachable through Search,
+  /// within their own screens, or via Settings.
+  static const List<String> _tvVisibleIds = [
+    'home', 'discover', 'mylist', 'search', 'live_matches', 'iptv', 'music', 'settings',
+  ];
+
+  List<String> _defaultVisibleIdsForContext() {
+    if (_isGoogleTv) {
+      return _tvVisibleIds;
+    }
+    return SettingsService.allNavIds;
+  }
 
   @override
   void initState() {
@@ -122,6 +136,10 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
 
     _loadNavbarConfig();
     _checkForUpdates();
+    if (_isGoogleTv && _selectedIndex < 0) {
+      _selectedIndex = _visibleIds.indexOf('home').clamp(0, _visibleIds.length - 1);
+      _syncTvRailFocusNodes();
+    }
     // The TV flavor sets this flag before Dart starts. The size fallback also
     // supports Android TV devices that do not expose a TV-specific feature.
     _isGoogleTv = const bool.fromEnvironment('PLAYTORRIO_GOOGLE_TV') ||
@@ -129,9 +147,11 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
           WidgetsBinding.instance.platformDispatcher.views.first,
         ).size.shortestSide >= 600;
     _syncTvRailFocusNodes();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && _isGoogleTv) _requestTvRailFocus();
-    });
+    if (_isGoogleTv) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _requestTvRailFocus('home');
+      });
+    }
   }
 
   Future<void> _checkForUpdates() async {
@@ -158,7 +178,11 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
       final currentId = _selectedIndex < _visibleIds.length
           ? _visibleIds[_selectedIndex]
           : null;
-      _visibleIds = [...visible, 'settings'];
+      final freshIds = _defaultVisibleIdsForContext();
+      _visibleIds = [...freshIds, 'settings'];
+      if (_isGoogleTv && currentId == null) {
+        _selectedIndex = freshIds.indexOf('home').clamp(0, freshIds.length - 1);
+      }
       _syncTvRailFocusNodes();
       // Try to stay on the same screen after reorder/hide
       if (currentId != null) {

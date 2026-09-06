@@ -38,7 +38,7 @@
             android:launchMode="singleTop"
             android:taskAffinity=""
             android:theme="@style/LaunchTheme"
-            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode|screenLayout"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|screenLayout|density|uiMode|screenLayout|layoutDirection|fontScale"
             android:hardwareAccelerated="true"
             android:supportsPictureInPicture="true"
             android:resizeableActivity="true"
@@ -52,6 +52,21 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
             <!-- TV Launcher Support -->
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <!-- Explicit Google TV flavor entrypoint: opens the TV shell directly
+             and forces the curated rail instead of relying on the size heuristic. -->
+        <activity
+            android:name=".GoogleTvActivity"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:screenOrientation="landscape"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|screenLayout|density|uiMode|screenLayout|layoutDirection|fontScale"
+            android:hardwareAccelerated="true"
+            android:theme="@style/NormalTheme">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />

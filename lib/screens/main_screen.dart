@@ -526,14 +526,14 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
                     ),
                   ),
                 ),
-            Expanded(
-              child: IndexedStack(
-                index: _selectedIndex,
-                children: _visibleIds.map((id) => _allScreens[id]!).toList(),
+              Expanded(
+                child: IndexedStack(
+                  index: _selectedIndex,
+                  children: _visibleIds.map((id) => _allScreens[id]!).toList(),
+                ),
               ),
-            ),
-          ],
-        ),
+            ],
+          ),
         ],
       ),
       bottomNavigationBar: useNavRail
